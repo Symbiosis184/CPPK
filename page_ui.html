@@ -26,9 +26,6 @@
   #q:focus { border-color:var(--green); }
   select { padding:0 12px; font-size:14px; border:2px solid #cfd6dd; border-radius:10px; background:#fff; height:48px; }
   .hint { color:var(--muted); font-size:12.5px; margin:4px 2px 14px; }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .chip { padding:7px 16px; border-radius:999px; border:1.5px solid #cfd6dd; background:#fff; cursor:pointer; font-size:14px; font-weight:600; }
-  .chip.active { background:var(--green); border-color:var(--green); color:#fff; }
   .count { color:var(--muted); font-size:13px; margin:0 2px 10px; }
   .card { background:var(--card); border-radius:14px; padding:16px 18px; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,24,32,.08); }
   .card.obj { border-left:5px solid var(--green); }
@@ -75,21 +72,13 @@
   <div class="uploader" id="uploader">
     <button class="ubtn" onclick="document.getElementById('file').click()">📄 Загрузить XLS/XLSX</button>
     <input type="file" id="file" accept=".xls,.xlsx,.xlsm">
-    <button class="ubtn sec" id="clrBtn" style="display:none" onclick="clearBase()">✖ Удалить базу</button>
     <div class="ustatus" id="ustatus"></div>
   </div>
 
   <div class="searchbar">
-    <input id="q" placeholder="Город + номер БПА, станция, адрес, IP, TID, s/n…" autocomplete="off" inputmode="search">
-    <select id="city"><option value="">Все города</option></select>
-    <select id="scheme">
-      <option value="">Любая схема IP</option>
-      <option value="static">Static (СПД)</option>
-      <option value="GSM">GSM</option>
-      <option value="dhcp">DHCP</option>
-    </select>
+    <input id="q" placeholder="Город + номер БПА, станция, адрес, IP, шлюз, маска, TID, s/n…" autocomplete="off" inputmode="search">
   </div>
-  <div class="hint">Ищите прямо с телефона · поиск нечувствителен к регистру и раскладке клавиатуры · файл можно перетащить на блок загрузки</div>
+  <div class="hint">Ищите по любой информации: город, номер билетомата, станция, адрес, IP, шлюз, маска, VLAN, TID, s/n Pin-Pad · регистр и раскладка клавиатуры не важны · файл можно перетащить на блок загрузки</div>
   <div class="count" id="count"></div>
   <div id="results"></div>
 
@@ -156,11 +145,13 @@ function card(t){
     if(t.model) rows.push(kvRow("POS-терминал", esc(t.model)));
     if(t.ip) rows.push(kvRow("IP БПА", `<code>${esc(t.ip)}</code>`));
     else rows.push(kvRow("IP БПА", "<span style='color:#68727f'>не назначен ("+esc(t.connection||"—")+")</span>"));
+    // маска и шлюз — сразу под IP билетомата
+    if(t.gateway) rows.push(kvRow("Шлюз", `<code>${esc(t.gateway)}</code>`));
+    if(t.mask) rows.push(kvRow("Маска", `<code>${esc(t.mask)}</code>`));
     if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
     if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
     if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
     if(t.ip_fr) rows.push(kvRow("IP ФР", `<code>${esc(t.ip_fr)}</code>`));
-    if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask||"—")}</code> / <code>${esc(t.gateway||"—")}</code>`));
     if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
     if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
     if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
@@ -208,12 +199,8 @@ function card(t){
 function render(){
   const qRaw = document.getElementById('q').value.trim();
   const q = norm(qRaw);
-  const city = document.getElementById('city').value;
-  const sc = document.getElementById('scheme').value;
   const words = q.split(/\s+/).filter(Boolean);
   let res = DATA.filter(t=>{
-    if(city && norm(t.city||"")!==norm(city)) return false;
-    if(sc && !(t.ip_scheme||"").toLowerCase().includes(sc.toLowerCase())) return false;
     if(words.length){
       const hay = hayOf(t);
       return words.every(w=>matchWord(hay, w));
@@ -222,14 +209,18 @@ function render(){
   });
   // релевантность: точное совпадение номера/города — выше; объекты из файла — первыми
   if(words.length){
-    const first = words[0];
-    res.sort((a,b)=>{
-      const an = norm(String(a.number||"")), bn = norm(String(b.number||""));
-      if(an===first && bn!==first) return -1;
-      if(bn===first && an!==first) return 1;
-      const ao = a.object?0:1, bo = b.object?0:1;
-      return ao-bo;
-    });
+    const score = t => {
+      let s = 0;
+      const num = String(t.number||""), city = norm(String(t.city||"")), st = norm(String(t.station||""));
+      for(const w of words){
+        if(num === w) s += 100;                       // точный номер билетомата
+        else if(num.includes(w)) s += 40;
+        if(city === w || city.startsWith(w)) s += 30; // город (в т.ч. транслит: moskva)
+        if(st && (st === w || st.includes(w))) s += 20;
+      }
+      return s + (t.object ? 5 : 0);
+    };
+    res.sort((a,b)=>score(b)-score(a));
   } else {
     res = res.filter(r=>r.object).concat(res.filter(r=>!r.object));
   }
@@ -238,14 +229,6 @@ function render(){
     `Найдено: ${res.length} (объектов: ${objs}) · всего в базе: ${DATA.length}`;
   document.getElementById('results').innerHTML = res.length ? res.map(card).join("")
     : '<div class="empty">Ничего не найдено. Попробуйте другой запрос или загрузите XLS.</div>';
-}
-
-function fillCities(){
-  const sel = document.getElementById('city');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Все города</option>' +
-    [...new Set(DATA.filter(t=>t.city).map(t=>t.city))].sort()
-      .map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join("");
 }
 
 function copyCard(btn){
@@ -266,18 +249,10 @@ async function doUpload(f){
     const j = await r.json();
     if(!j.ok){ st.className='ustatus err'; st.textContent='❌ '+j.error; return; }
     DATA = REF.concat(j.cards || []);
-    fillCities(); render();
-    document.getElementById('clrBtn').style.display='';
+    render();
     st.className='ustatus ok';
     st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
-}
-async function clearBase(){
-  if(!confirm('Удалить загруженную объектную базу с сервера?')) return;
-  await fetch('/api/upload',{method:'DELETE'});
-  DATA = REF.slice(); fillCities(); render();
-  document.getElementById('clrBtn').style.display='none';
-  const st=document.getElementById('ustatus'); st.className='ustatus'; st.textContent='База очищена.';
 }
 document.getElementById('file').addEventListener('change',e=>{ if(e.target.files[0]) doUpload(e.target.files[0]); e.target.value=''; });
 const up = document.getElementById('uploader');
@@ -285,13 +260,9 @@ const up = document.getElementById('uploader');
 ['dragleave','drop'].forEach(ev=>up.addEventListener(ev,e=>{e.preventDefault(); up.classList.remove('drag');}));
 up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
 
-// ---------- фильтры ----------
+// ---------- поиск ----------
 document.getElementById('q').addEventListener('input', render);
-document.getElementById('city').addEventListener('change', render);
-document.getElementById('scheme').addEventListener('change', render);
 
-if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
-fillCities();
 render();
 </script>
 </body>
