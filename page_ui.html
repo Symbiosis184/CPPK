@@ -131,7 +131,7 @@ function revTr(q){
   return out;
 }
 function hayOf(t){
-  const keys=["model","vendor","tm_model","connection","ip_scheme","ip","mask","gateway","dns","server","com_port","auth","firmware","notes","number","city","address","sim","ports_out","install_date"];
+  const keys=["model","vendor","tm_model","connection","ip_scheme","ip","pinpad_ip","fr_ip","mask","gateway","dns","server","com_port","auth","firmware","notes","number","serial","city","station","direction","section","address","reg_address","place","region","mcd","tid","sn_pinpad","sim","ports_out","install_date","extras"];
   let a = keys.map(k=>t[k]||"").join(" ").toLowerCase();
   if(t.vlan) a += " vlan " + t.vlan;
   a += " " + (t.tags||[]).join(" ") + " " + (t.setup_steps||[]).join(" ");
@@ -151,23 +151,33 @@ function card(t){
   const isObj = !!t.object;
   const rows = [];
   if(isObj){
-    rows.push(kvRow("№ билетомата", `<code>${esc(t.number)}</code>`));
+    rows.push(kvRow("ID БПА", `<code>${esc(t.number)}</code>`));
+    if(t.serial) rows.push(kvRow("Зав. №", `<code>${esc(t.serial)}</code>`));
+    if(t.station || t.direction || t.section)
+      rows.push(kvRow("Объект", `${t.direction?esc(t.direction)+" · ":""}${t.section?esc(t.section)+" · ":""}ст. <b>${esc(t.station||"—")}</b>`));
     if(t.city || t.address) rows.push(kvRow("Адрес", `${esc(t.city||"")}${t.address ? " — " + esc(t.address) : ""}`));
+    if(t.reg_address && t.reg_address !== t.address) rows.push(kvRow("Регистрация", esc(t.reg_address)));
+    if(t.place) rows.push(kvRow("Место расчетов", esc(t.place)));
   }
-  if(t.ip) rows.push(kvRow("IP-адресация", `<code>${esc(t.ip)}</code> (${esc(t.ip_scheme||"—")})`));
+  if(t.ip) rows.push(kvRow("IP билетомата", `<code>${esc(t.ip)}</code> (${esc(t.ip_scheme||"—")})`));
+  if(t.pinpad_ip) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.pinpad_ip)}</code>`));
+  if(t.fr_ip) rows.push(kvRow("IP ФР (ККМ)", `<code>${esc(t.fr_ip)}</code>`));
   if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask)}</code> / <code>${esc(t.gateway)}</code>`));
   if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
   if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
   if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
-  if(t.connection) rows.push(kvRow("Интерфейс билетомата", esc(t.connection)));
+  if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
+  if(t.tid || t.sn_pinpad) rows.push(kvRow("Pin-Pad", `TID <code>${esc(t.tid||"—")}</code> · s/n <code>${esc(t.sn_pinpad||"—")}</code>`));
+  if(t.com_port) rows.push(kvRow("Интерфейс", esc(t.com_port)));
   if(t.sim) rows.push(kvRow("SIM / APN", esc(t.sim)));
   if(t.auth) rows.push(kvRow("Аутентификация", esc(t.auth)));
   if(t.firmware) rows.push(kvRow("Прошивка", esc(t.firmware)));
   if(t.install_date) rows.push(kvRow("Дата установки", esc(t.install_date)));
+  if(t.extras) rows.push(kvRow("Прочее", esc(t.extras)));
 
   const badges = [
     isObj ? `<span class="badge b-num">#${esc(t.number)}</span>` : "",
-    `<span class="badge b-${(t.ticket_machine||'').toLowerCase()}">${esc(t.ticket_machine||"?")}${t.tm_model?" · "+esc(t.tm_model):""}</span>`,
+    `<span class="badge b-${(t.ticket_machine||'').toLowerCase()}">${esc(t.ticket_machine||"?")}${t.tm_model&&t.tm_model!==t.ticket_machine?" · "+esc(t.tm_model):""}</span>`,
     t.vendor ? `<span class="badge b-vendor">${esc(t.vendor)}</span>` : "",
     t.ip_scheme ? `<span class="badge b-scheme">${esc(t.ip_scheme)}</span>` : "",
   ].join("");
@@ -175,11 +185,13 @@ function card(t){
   const steps = (t.setup_steps && t.setup_steps.length)
     ? `<details open><summary>Порядок настройки</summary><ol class="steps">${t.setup_steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></details>` : "";
   const note = t.notes ? `<div class="note">💡 ${esc(t.notes)}</div>` : "";
-  const title = isObj ? esc(t.model || "Объект") : esc(t.model);
+  const title = isObj ? (t.station ? "ст. " + esc(t.station) : esc(t.model || "Объект")) : esc(t.model);
   return `<div class="card${isObj?' obj':''}">
     <button class="copy" onclick="copyCard(this)">📋 Копировать</button>
     <h2>${title}</h2>
-    ${isObj && (t.city||t.address) ? `<div class="loc">📍 <b>${esc(t.city||"")}</b>${t.address?" · "+esc(t.address):""}</div>`:""}
+    ${isObj && t.model && t.station ? `<div class="loc">🖥 ${esc(t.model)}${t.tm_model?" · "+esc(t.tm_model):""}</div>`:""}
+    ${isObj && (t.city||t.address) ? `<div class="loc">📍 <b>${esc(t.city||"")}</b>${t.address?" · "+esc(t.address):""}</div>`:
+      (isObj && t.place ? `<div class="loc">📍 ${esc(t.place)}</div>` : "")}
     <div class="badges">${badges}</div>
     <table class="kv">${rows.join("")}</table>
     ${steps}${note}
@@ -240,7 +252,14 @@ async function doUpload(f){
     fillCities(); render();
     document.getElementById('clrBtn').style.display='';
     st.className='ustatus ok';
-    st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
+    const parts = [`✅ Импортировано объектов: ${j.imported}`];
+    if(j.sheets && j.sheets.length) parts.push(`листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}`);
+    if(j.recognized && j.recognized.length) parts.push(`распознанные колонки: ${j.recognized.join(", ")}`);
+    if(j.cities && j.cities.length) parts.push(`городов: ${j.cities.length}`);
+    st.textContent = parts.join(" · ");
+    if(j.unrecognized && j.unrecognized.length){
+      st.innerHTML += `<br><small>Не распознаны как отдельные поля (сохранены в «Прочее», ищутся): ${esc(j.unrecognized.join(", "))}</small>`;
+    }
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
 }
 async function clearBase(){

@@ -130,9 +130,11 @@ def _search(text: str, needle: str) -> bool:
 def _haystack(t: dict) -> str:
     parts = []
     for key in ("model", "vendor", "ticket_machine", "tm_model", "connection",
-                "ip_scheme", "ip", "mask", "gateway", "dns", "server", "com_port",
-                "auth", "firmware", "notes", "number", "city", "address",
-                "sim", "ports_out", "install_date"):
+                "ip_scheme", "ip", "pinpad_ip", "fr_ip", "mask", "gateway", "dns",
+                "server", "com_port", "auth", "firmware", "notes", "number",
+                "serial", "city", "station", "direction", "section", "address",
+                "reg_address", "place", "region", "mcd", "tid", "sn_pinpad",
+                "sim", "ports_out", "install_date", "extras"):
         if t.get(key):
             parts.append(str(t[key]))
     if t.get("vlan"):
