@@ -3,7 +3,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/<ВашЛогин>/<Репозиторий>/main/setup_from_git.sh | bash
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/USER/REPO.git}"  # можно переопределить: REPO_URL=... bash setup_from_git.sh
+REPO_URL="${REPO_URL:-https://github.com/Symbiosis184/CPPK.git}"  # можно переопределить: REPO_URL=... bash setup_from_git.sh
 APP_DIR="/opt/cppk"
 PORT="${PORT:-9000}"
 
