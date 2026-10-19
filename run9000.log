@@ -1,9 +1,0 @@
-nohup: ignoring input
-OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
-INFO:     Started server process [1388]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:9000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:42400 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42402 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42410 - "GET /api/health HTTP/1.1" 200 OK
