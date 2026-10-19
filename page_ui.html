@@ -75,29 +75,15 @@
   <div class="uploader" id="uploader">
     <button class="ubtn" onclick="document.getElementById('file').click()">📄 Загрузить XLS/XLSX</button>
     <input type="file" id="file" accept=".xls,.xlsx,.xlsm">
-    <button class="ubtn sec" id="clrBtn" style="display:none" onclick="clearBase()">✖ Удалить базу</button>
+    <button class="ubtn sec" id="clrBtn" style="display:none" onclick="clearBase()">🗑 Удалить базу</button>
     <div class="ustatus" id="ustatus"></div>
   </div>
 
   <div class="searchbar">
     <input id="q" placeholder="Город + номер БПА, станция, адрес, IP, TID, s/n…" autocomplete="off" inputmode="search">
-    <select id="city"><option value="">Все города</option></select>
-    <select id="scheme">
-      <option value="">Любая схема IP</option>
-      <option value="static">Static (СПД)</option>
-      <option value="GSM">GSM</option>
-      <option value="dhcp">DHCP</option>
-    </select>
   </div>
-  <div class="hint">Ищите прямо с телефона · поиск нечувствителен к регистру и раскладке клавиатуры · файл можно перетащить на блок загрузки</div>
   <div class="count" id="count"></div>
   <div id="results"></div>
-
-  <h3 class="sec">⚡ Быстрая диагностика типовых ошибок</h3>
-  <table class="err-table">
-    <tr><th>Код</th><th>Симптом</th><th>Причина</th><th>Что делать</th></tr>
-    __ERROR_ROWS__
-  </table>
 </main>
 <footer>Внутренний инструмент. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
 
@@ -124,19 +110,39 @@ function revTr(q){
 function hayOf(t){
   const keys=["model","vendor","tm_model","connection","ip_scheme","ip","mask","gateway",
               "dns","server","com_port","auth","firmware","notes","number","city","address",
-              "sim","ports_out","install_date","station","direction","section","zav","tid",
-              "sn_pinpad","ip_pinpad","ip_fr","region","mcd","place"];
+              "reg_address","sim","ports_out","install_date","station","direction","section",
+              "zav","tid","sn_pinpad","ip_pinpad","ip_fr","region","mcd","place"];
   let a = keys.map(k=>t[k]||"").join(" ").toLowerCase();
   if(t.vlan) a += " vlan " + t.vlan;
   a += " " + (t.tags||[]).join(" ") + " " + (t.setup_steps||[]).join(" ");
+  const c=(t.city||"").toLowerCase();
+  if(PLACE_EXTRA[c]) a += " " + PLACE_EXTRA[c];
   return a;
 }
 const qw2cyr = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ','\\':'ё','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',"'":'э','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'};
 function qwTr(q){ return q.split('').map(c=>qw2cyr[c]!==undefined?qw2cyr[c]:c).join(''); }
-function matchWord(hayLowered, w){
+const PLACE_EXTRA = {
+  'москва':'московский москвы московская','пушкино':'пушкинский пушкинские пушкинская пушкина',
+  'одинцово':'одинцовский одинцовских','руза':'рузский рузский ружский рузы',
+  'звенигород':'звенигородский звенигорода','можайск':'можайский можайска',
+  'красногорск':'красногорский','подольск':'подольский'
+};
+function wordForms(w){
   const cands = new Set([w, norm(w), norm(qwTr(w))]);
   if(/^[\x00-\x7f]+$/.test(w)){ const cyr = revTr(w); cands.add(norm(cyr)); cands.add(norm(qwTr(cyr))); }
-  return [...cands].some(c => hayLowered.includes(c));
+  // топонимы: Пушкин -> Пушкино (доп. окончания) и обратные формы
+  if(w.length>=4 && /[а-яё]/.test(w)){
+    const base = /[аяье]$/.test(w) ? w.slice(0,-1) : w;
+    for(const suf of ['о','ово','ево','ино','ыно','а','я']){
+      const cand = base+suf;
+      if(cand!==w){ cands.add(cand); cands.add(norm(cand)); }
+    }
+  }
+  if(PLACE_EXTRA[w]) PLACE_EXTRA[w].split(' ').forEach(e=>cands.add(e));
+  return [...cands];
+}
+function matchWord(hayLowered, hayNorm, w){
+  return wordForms(w).some(c => hayLowered.includes(c) || hayNorm.includes(c));
 }
 
 function kvRow(label, val){ return `<tr><td>${label}</td><td>${val}</td></tr>`; }
@@ -153,16 +159,17 @@ function card(t){
     if(t.direction || t.section) rows.push(kvRow("Направление / Участок", `${esc(t.direction||"")}${t.section?" · "+esc(t.section):""}`));
     if(t.tm_model) rows.push(kvRow("Модель БПА", esc(t.tm_model)));
     if(t.model) rows.push(kvRow("POS-терминал", esc(t.model)));
+    if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
+    if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
+    if(t.gateway) rows.push(kvRow("Шлюз", `<code>${esc(t.gateway)}</code>`));
+    if(t.mask) rows.push(kvRow("Маска", `<code>${esc(t.mask)}</code>`));
     if(t.ip) rows.push(kvRow("IP БПА", `<code>${esc(t.ip)}</code>`));
     else rows.push(kvRow("IP БПА", "<span style='color:#68727f'>не назначен ("+esc(t.connection||"—")+")</span>"));
-    if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
-    if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
-    if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
     if(t.ip_fr) rows.push(kvRow("IP ФР", `<code>${esc(t.ip_fr)}</code>`));
-    if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask||"—")}</code> / <code>${esc(t.gateway||"—")}</code>`));
+    if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
+    if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
     if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
     if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
-    if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
     if(t.mcd) rows.push(kvRow("Прин-сть к МЦД", esc(t.mcd)));
     if(t.region) rows.push(kvRow("Регион", esc(t.region)));
     if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
@@ -207,20 +214,17 @@ function card(t){
 function render(){
   const qRaw = document.getElementById('q').value.trim();
   const q = norm(qRaw);
-  const city = document.getElementById('city').value;
-  const sc = document.getElementById('scheme').value;
   const words = q.split(/\s+/).filter(Boolean);
-  let res = DATA.filter(t=>{
-    if(city && norm(t.city||"")!==norm(city)) return false;
-    if(sc && !(t.ip_scheme||"").toLowerCase().includes(sc.toLowerCase())) return false;
-    if(words.length){
+  let res;
+  if(!words.length){
+    res = [];   // без запроса карточек не показываем
+  } else {
+    res = DATA.filter(t=>{
       const hay = hayOf(t);
-      return words.every(w=>matchWord(hay, w));
-    }
-    return true;
-  });
-  // релевантность: точное совпадение номера/города — выше; объекты из файла — первыми
-  if(words.length){
+      const hayNorm = norm(hay);
+      return words.every(w=>matchWord(hay, hayNorm, w));
+    });
+    // релевантность: точное совпадение номера/города — выше; объекты из файла первыми
     const first = words[0];
     res.sort((a,b)=>{
       const an = norm(String(a.number||"")), bn = norm(String(b.number||""));
@@ -229,22 +233,18 @@ function render(){
       const ao = a.object?0:1, bo = b.object?0:1;
       return ao-bo;
     });
-  } else {
-    res = res.filter(r=>r.object).concat(res.filter(r=>!r.object));
+  }
+  const countEl = document.getElementById('count');
+  const resEl = document.getElementById('results');
+  if(!words.length){
+    countEl.textContent = DATA.length ? `В базе объектов: ${DATA.length} · введите город, номер билетомата, станцию или IP` : 'База пуста — загрузите XLS/XLSX';
+    resEl.innerHTML = '';
+    return;
   }
   const objs = res.filter(r=>r.object).length;
-  document.getElementById('count').textContent =
-    `Найдено: ${res.length} (объектов: ${objs}) · всего в базе: ${DATA.length}`;
-  document.getElementById('results').innerHTML = res.length ? res.map(card).join("")
+  countEl.textContent = `Найдено: ${res.length} (объектов: ${objs})`;
+  resEl.innerHTML = res.length ? res.map(card).join("")
     : '<div class="empty">Ничего не найдено. Попробуйте другой запрос или загрузите XLS.</div>';
-}
-
-function fillCities(){
-  const sel = document.getElementById('city');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Все города</option>' +
-    [...new Set(DATA.filter(t=>t.city).map(t=>t.city))].sort()
-      .map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join("");
 }
 
 function copyCard(btn){
@@ -265,18 +265,24 @@ async function doUpload(f){
     const j = await r.json();
     if(!j.ok){ st.className='ustatus err'; st.textContent='❌ '+j.error; return; }
     DATA = REF.concat(j.cards || []);
-    fillCities(); render();
+    render();
     document.getElementById('clrBtn').style.display='';
     st.className='ustatus ok';
     st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
 }
 async function clearBase(){
-  if(!confirm('Удалить загруженную объектную базу с сервера?')) return;
-  await fetch('/api/upload',{method:'DELETE'});
-  DATA = REF.slice(); fillCities(); render();
-  document.getElementById('clrBtn').style.display='none';
-  const st=document.getElementById('ustatus'); st.className='ustatus'; st.textContent='База очищена.';
+  const pw = prompt('Для удаления базы введите пароль:');
+  if(pw === null) return;
+  const st=document.getElementById('ustatus');
+  try{
+    const r = await fetch('/api/upload',{method:'DELETE',headers:{'X-Admin':pw}});
+    if(r.status===403){ st.className='ustatus err'; st.textContent='❌ Неверный пароль. База не удалена.'; return; }
+    if(!r.ok){ throw new Error('HTTP '+r.status); }
+    DATA = []; render();
+    document.getElementById('clrBtn').style.display='none';
+    st.className='ustatus'; st.textContent='База очищена.';
+  }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка: '+e; }
 }
 document.getElementById('file').addEventListener('change',e=>{ if(e.target.files[0]) doUpload(e.target.files[0]); e.target.value=''; });
 const up = document.getElementById('uploader');
@@ -286,11 +292,8 @@ up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTrans
 
 // ---------- фильтры ----------
 document.getElementById('q').addEventListener('input', render);
-document.getElementById('city').addEventListener('change', render);
-document.getElementById('scheme').addEventListener('change', render);
 
 if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
-fillCities();
 render();
 </script>
 </body>

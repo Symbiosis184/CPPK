@@ -19,7 +19,7 @@ import re
 import unicodedata
 from typing import List
 
-from fastapi import FastAPI, File, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from data import TERMINALS, ERRORS
@@ -27,6 +27,17 @@ import xls_import
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_STORE = os.path.join(BASE_DIR, "upload_store.json")
+
+# Пароль на удаление базы (меняется здесь же)
+ADMIN_PASSWORD = os.environ.get("CPPK_ADMIN_PASSWORD", "25122023")
+
+
+def require_admin(x_admin: str = Header(default="")):
+    """Доступ к удалению базы — только с правильным паролем (25122023)."""
+    from fastapi.exceptions import HTTPException
+    if x_admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Неверный пароль")
+    return True
 
 app = FastAPI(
     title="CPPK — база сетевых настроек терминалов BPA/APB",
@@ -127,6 +138,37 @@ def _search(text: str, needle: str) -> bool:
     return any(v in tn or v in tl for v in _variants(needle))
 
 
+# Топонимы: город -> дополнительные формы/слова для поиска (в т.ч. район, область)
+_PLACE_EXTRA = {
+    "москва": "московский москвы московская",
+    "пушкино": "пушкинский пушкино пушкинские пушкинская пушкина",
+    "одинцово": "одинцовский одинцово одинцовских",
+    "руза": "рузский рузский ружский рузы",
+    "звенигород": "звенигородский звенигорода",
+    "можайск": "можайский можайска",
+    "красногорск": "красногорский",
+    "подольск": "подольский",
+    "сергиев посад": "сергиева посада сергиево-посадский",
+}
+
+
+def _word_forms(w: str) -> set:
+    """Варианты слова с учётом транслита/раскладки; для топонима добавляет
+    его окончание (Пушкин -> Пушкино) и известные формы (Пушкино -> Пушкинский)."""
+    v = _variants(w)
+    if len(w) >= 4 and not w.isascii():
+        base = w[:-1] if w.endswith(("о", "а", "я", "е")) else w
+        for suf in ("о", "ово", "ево", "ино", "ыно", "а", "я"):
+            cand = base + suf
+            if cand != w:
+                v |= _variants(cand)
+    extra = _PLACE_EXTRA.get(w)
+    if extra:
+        for e in extra.split():
+            v |= _variants(e)
+    return v
+
+
 def _haystack(t: dict) -> str:
     parts = []
     for key in ("model", "vendor", "ticket_machine", "tm_model", "connection",
@@ -134,11 +176,14 @@ def _haystack(t: dict) -> str:
                 "auth", "firmware", "notes", "number", "city", "address",
                 "sim", "ports_out", "install_date", "station", "direction",
                 "section", "zav", "tid", "sn_pinpad", "ip_pinpad", "ip_fr",
-                "region", "mcd", "place"):
+                "region", "mcd", "place", "reg_address"):
         if t.get(key):
             parts.append(str(t[key]))
     if t.get("vlan"):
         parts.append("VLAN " + str(t["vlan"]))
+    city = (t.get("city") or "").lower()
+    if city in _PLACE_EXTRA:
+        parts.append(_PLACE_EXTRA[city])
     parts += list(t.get("tags") or [])
     parts += list(t.get("setup_steps") or [])
     return " ".join(parts)
@@ -165,9 +210,30 @@ def filter_all(q: str = "", tm: str = "", vendor: str = "", scheme: str = "",
         if q:
             hay = _haystack(t)
             hn, hl = _norm(hay), hay.lower()
-            if not all(any(v in hn or v in hl for v in _variants(w)) for w in q.split()):
+            if not all(any(v in hn or v in hl for v in _word_forms(w))
+                       for w in q.split()):
                 continue
         results.append(t)
+    # релевантность: точное совпадение номера/города — наверх; объекты из файла первыми
+    if q:
+        words = [w.lower() for w in q.split()]
+
+        def score(t):
+            s = 0
+            num = str(t.get("number") or "")
+            city = (t.get("city") or "").lower()
+            st = (t.get("station") or "").lower()
+            for w in words:
+                if w == num.lower():
+                    s -= 10
+                elif city and (w == city or _word_forms(w) & _word_forms(city)):
+                    s -= 5
+                elif st and st.startswith(w[:4]):
+                    s -= 3
+            if t.get("object"):
+                s -= 1
+            return s
+        results.sort(key=score)
     return results
 
 
@@ -223,7 +289,7 @@ async def upload(file: UploadFile = File(...)):
 
 
 @app.delete("/api/upload")
-def clear_upload():
+def clear_upload(_admin=Depends(require_admin)):
     global UPLOADED
     UPLOADED = []
     if os.path.exists(UPLOAD_STORE):
@@ -251,14 +317,14 @@ with open(os.path.join(BASE_DIR, "page_ui.html"), encoding="utf-8") as _f:
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    err_rows = "".join(
-        f"<tr><td><code>{e['code']}</code></td><td>{e['symptom']}</td><td>{e['cause']}</td><td>{e['fix']}</td></tr>"
-        for e in ERRORS
-    )
+    err_rows = ""
     html = PAGE.replace("__ERROR_ROWS__", err_rows)
-    html = html.replace("__REF__", json.dumps(TERMINALS, ensure_ascii=False))
+    html = html.replace("__REF__", "[]")
     html = html.replace("__OBJ__", json.dumps(UPLOADED, ensure_ascii=False))
-    return html
+    return HTMLResponse(html, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache", "Expires": "0",
+    })
 
 
 if __name__ == "__main__":
