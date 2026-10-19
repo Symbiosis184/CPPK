@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Импорт XLS/XLSX с объектной базой билетоматов в веб-сервис.
+"""Импорт XLS/XLSX с объектной базой билетоматов (БПА/APB) в веб-сервис.
 
-Поддерживаются «железнодорожные» таблицы вида:
+Формат файла инженера (ж/д билеты, Сбер):
   № п/п | Направление | Участок | Название станции | Модель БПА | Зав. № | ID БПА |
   Модель pos-терминала | s/n Pin-Pad | TID Pin-Pad СБЕР | Адрес регистрации |
-  Место расчетов | Тип связи (СПД/GSM) | ... | IP БПА | IP PinPad | IP ФР | Шлюз | Маска
+  Место расчетов | Тип связи (СПД/GSM) | Прин-сть к МЦД | Прин-сть к Москве/МО |
+  IP БПА | IP PinPad | IP ФР | Шлюз | Маска
 
-Столбцы определяются по заголовкам (порядок не важен), распознаются кириллица
-и латиница, разные варианты названий колонок. Неизвестные колонки сохраняются
-как «прочее» и участвуют в поиске.
+Столбцы определяются по «говорящим» заголовкам (порядок не важен).
+Значения берутся СТРОГО из соответствующих колонок — никаких догадок,
+чтобы данные оставались точными как в файле.
 """
 import datetime
 import re
@@ -23,162 +24,145 @@ except Exception:
 
 
 # ---------------------------------------------------------------------------
-# Словарь заголовков: внутреннее имя -> список вариантов названия колонки
+# Внутренние ключи -> варианты заголовков колонки
 # ---------------------------------------------------------------------------
 _ALIASES = {
-    "number":      ["id бпа", "id apb", "id билета", "id билетомата",
-                    "номер билетомата", "№ билетомата", "номер бма", "номер бпа",
-                    "номер apb", "номер tm", "номер автомата", "номер устройства",
-                    "инвентарный номер", "инв номер", "id терминала",
-                    "ticket machine id"],
-    "serial":      ["зав №", "зав номер", "зав. номер", "заводской номер",
-                    "serial number", "s/n", "sn"],
+    "pasp":        ["№ п/п", "n п/п", "н п/п", "пп", "№п/п", "п/п", "no", "номер строки"],
+    "direction":   ["направление", "напрвление", "направлени", "direction"],
+    "section":     ["участок", "yчасток", "сектор", "section"],
     "station":     ["название станции", "станция", "остановочный пункт",
-                    "наименование станции", "station"],
-    "direction":   ["направление", "напрвление", "direction"],
-    "section":     ["участок", "секция", "section"],
-    "tm_model":    ["модель бпа", "модель bpa", "модель apb",
-                    "модель абп", "модель билетомата", "модель бма", "модель tm",
-                    "модель автомата", "тип бпа", "тип билетомата", "tm model"],
-    "ticket_machine": ["тип билетомата", "вид билетомата", "система билетомата",
-                       "тип tm"],
-    "model":       ["модель pos терминала", "pos терминал", "pos терминала",
-                    "модель терминала", "модель пктс", "модель пкт",
-                    "пктс", "пкт", "банк терминал", "банковский терминал",
-                    "terminal model", "терминал"],
-    "vendor":      ["вендор", "производитель", "vendor", "brand", "марка"],
-    "ip":          ["ip бпа", "ip bpa", "ip apb", "ip абп", "ip билетомата",
-                    "ip бма", "ip терминала", "ip адрес", "адрес ip",
-                    "ipv4", "ip address", "ip"],
-    "pinpad_ip":   ["ip pinpad", "ip pin pad", "ip пинпад"],
-    "fr_ip":       ["ip фр", "ip ккм", "ip фискального", "ip фн"],
+                    "ноп", "station", "название остановочного пункта"],
+    "tm_model":    ["модель бпа", "модель bppa", "модель билетомата", "модель бма",
+                    "модель апб", "модель tm", "tm model", "модель автомата"],
+    "zav":         ["зав. №", "зав №", "зав.", "заводской номер", "заводской н",
+                    "заводской", "ser", "serial number"],
+    "number":      ["id бпа", "ид бпа", "номер билетомата", "№ билетомата",
+                    "номер бма", "id бма", "номер tm", "id tm", "номер автомата",
+                    "ticket machine number", "bma number"],
+    "model":       ["модель pos-терминала", "модель pos терминала", "pos-терминал",
+                    "pos терминал", "модель терминала", "терминал", "модель пктс",
+                    "модель пкт", "пктс", "пкт", "terminal", "terminal model",
+                    "банк-терминал", "банковский терминал", "устройство"],
+    "sn_pinpad":   ["s/n pin-pad", "sn pin pad", "s/n pinpad", "серийный номер pin-pad",
+                    "серийник pin-pad", "pin-pad sn", "sn pin_pad", "s/n пинпад"],
+    "tid":         ["tid pin-pad сбер", "tid pin-pad", "tid pinpad", "tid",
+                    "tid пинпад"],
+    "address":     ["адрес регистрации для сбер банка", "адрес регистрации",
+                    "адрес регистр", "адрес", "address"],
+    "place":       ["место расчетов для сбер банка", "место расчетов", "место расчётов",
+                    "место установки", "место", "location"],
+    "connection":  ["тип связи", "тип связи (спд / gsm)", "тип связи (спд/gsm)",
+                    "канал связи", "способ связи", "связь"],
+    "mcd":         ["прин-сть к мцд", "принадлежность к мцд", "мцд"],
+    "region":      ["прин-сть к москве/мо/рег. центры", "прин-сть к москве/мо",
+                    "прин-сть к москве", "прин-сть к мо", "принадлежность",
+                    "прин-сть", "регион", "зона"],
+    "ip":          ["ip бпа", "ип бпа", "ip билетомата", "ip бма", "ip адрес бпа",
+                    "ip-адрес", "ip адрес", "ip", "ipv4", "ip address"],
+    "ip_pinpad":   ["ip pinpad", "ip pin-pad", "ип pin-pad", "ip пинпада",
+                    "ip pin_pad", "ip pos-терминала", "ip pos терминала"],
+    "ip_fr":       ["ip фр", "фр ip", "ip фискальный регистратор", "ip ккт"],
+    "gateway":     ["шлюз", "основной шлюз", "gateway", "gw", "default gateway"],
     "mask":        ["маска", "маска сети", "mask", "subnet", "prefix"],
-    "gateway":     ["шлюз", "основной шлюз", "gateway", "default gateway", "gw"],
     "dns":         ["dns", "днс", "dns сервер", "dns servers", "резервный dns"],
     "vlan":        ["vlan", "влан", "vrf"],
-    "connection":  ["тип связи", "канал связи", "способ связи", "связь",
-                    "тип подключения", "connection type", "link type"],
     "scheme":      ["dhcp", "статический", "static", "ip dhcp", "получение ip",
                     "способ получения ip", "ip схема", "ip scheme", "адресация"],
     "server":      ["сервер", "host", "хост", "серверы", "servers", "эквайринг",
                     "адрес сервера", "url"],
     "ports":       ["порты", "port", "ports", "tcp порты"],
-    "interface":   ["com порт", "rs232", "rs 232", "rs485", "rs 485", "usb",
-                    "ethernet", "eth", "интерфейс", "соединение", "interface",
-                    "baud", "скорость", "последовательный"],
-    "sim":         ["сим", "sim карта", "мкс", "мобильные операторы",
+    "sim":         ["сим", "sim-карта", "sim карта", "мкс", "мобильные операторы",
                     "оператор", "apn", "imei"],
-    "firmware":    ["прошивка", "fw", "firmware", "версия по", "version"],
-    "reg_address": ["адрес регистрации для сбер банка", "адрес регистрации",
-                    "юридический адрес", "адрес регистрации сбер"],
-    "place":       ["место расчетов для сбер банка", "место расчетов",
-                    "место установки", "месторасположение", "точка", "объект",
-                    "location"],
-    "mcd":         ["прин сть к мцд", "принадлежность к мцд", "мцд"],
-    "region":      ["прин сть", "принадлежность", "регион", "филиал", "рц"],
-    "tid":         ["tid pin pad сбер", "tid pin pad", "tid pinpad", "tid",
-                    "terminal id"],
-    "sn_pinpad":   ["s n pin pad", "s n pinpad", "sn pinpad"],
-    "city":        ["город", "city", "населенный пункт", "нп"],
-    "address":     ["адрес объекта", "фактический адрес", "address", "адрес"],
+    "firmware":    ["прошивка", "fw", "firmware", "версия прошивки", "version"],
     "notes":       ["примечание", "примечания", "комментарий", "note", "notes",
                     "remarks", "особенности", "доп", "дополнительно"],
-    "install_date": ["дата установки", "дата монтажа", "installed",
+    "install_date": ["дата установки", "дата монтажа", "installed", "date",
                      "введен в эксплуатацию"],
+    "vendor":      ["вендор", "производитель", "vendor", "brand", "марка"],
 }
 
 
-def _norm_head(s: str) -> str:
+def _strict_head(s: str) -> str:
+    """Нормализация заголовка: регистр, пробелы, дефисы, частые опечатки."""
     s = str(s).strip().lower()
-    s = s.replace("‘", "'").replace("’", "'").replace("`", "'")
-    s = s.replace("“", '"').replace("”", '"')
-    s = s.replace("\u00a0", " ")
-    for d in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014"):
-        s = s.replace(d, "-")
-    s = s.replace("№", "no ")
-    s = re.sub(r"[^a-zа-я0-9]+", " ", s)
+    s = s.replace("ё", "е")
+    s = re.sub(r"[‐‑–—]", "-", s)          # разные тире
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace("№", "n").replace("#", "n")
+    s = re.sub(r"\s*([/.])\s*", r"\1", s)  # "зав. №" -> "зав.n"
+    s = re.sub(r"[^a-zа-я0-9/. -]+", "", s)
     s = re.sub(r"\s+", " ", s).strip()
+    for a, b in (("bppa", "бпа"), ("pin—pad", "pin-pad")):
+        s = s.replace(a, b)
     return s
 
 
-def _build_lookup():
-    lookup = {}
+def _build_exact():
+    exact = {}
     for key, variants in _ALIASES.items():
         for v in variants:
-            nv = _norm_head(v)
-            if nv:
-                lookup[nv] = key
-    return lookup
+            hv = _strict_head(v)
+            if hv not in exact:
+                exact[hv] = key
+    return exact
 
 
-_LOOKUP = _build_lookup()
+_EXACT = _build_exact()
 
 
 def _score_header(h: str, alias: str) -> float:
-    """Насколько заголовок похож на вариант имени колонки."""
-    if not h or not alias:
-        return 0.0
     if h == alias:
-        return 4.0
-    if h.startswith(alias + " ") or alias.startswith(h + " "):
         return 3.0
-    if alias in h or h in alias:
+    if len(alias) >= 4 and (h.startswith(alias) or alias.startswith(h)):
         return 2.0
-    hw, aw = h.split(), alias.split()
-    if hw and aw and hw[0] == aw[0] and len(hw[0]) >= 4:
-        return 1.0
+    if len(alias) >= 5 and (alias in h or h in alias):
+        return 1.5
     return 0.0
 
 
-def _match_column(h: str):
-    best_key, best_sc = None, 0.0
-    for alias, key in _LOOKUP.items():
-        sc = _score_header(h, alias)
-        if sc > best_sc:
-            best_key, best_sc = key, sc
-    return best_key, best_sc
-
-
-_HEADER_HINTS = ("no", "модель", "model", "ip", "шлюз", "маска", "станц",
-                 "адрес", "тип", "tid", "зав", "id", "прин", "связь",
-                 "направ", "участок", "сервер", "dns", "vlan", "порт",
-                 "номер", "город", "терминал", "pin")
+def _map_header(row):
+    """{col_idx: key}; точные совпадения имеют приоритет над нечёткими."""
+    mapping, used_keys = {}, set()
+    for ci, c in enumerate(row):
+        if c is None:
+            continue
+        key = _EXACT.get(_strict_head(c))
+        if key and key not in used_keys:
+            mapping[ci] = key
+            used_keys.add(key)
+    for ci, c in enumerate(row):
+        if ci in mapping or c is None:
+            continue
+        h = _strict_head(c)
+        if not h or len(h) > 60:
+            continue
+        best_key, best_sc = None, 0.0
+        for key, variants in _ALIASES.items():
+            if key in used_keys:
+                continue
+            for v in variants:
+                sc = _score_header(h, _strict_head(v))
+                if sc > best_sc:
+                    best_key, best_sc = key, sc
+        if best_key and best_sc >= 1.5:
+            mapping[ci] = best_key
+            used_keys.add(best_key)
+    return mapping
 
 
 def _detect_header_row(rows):
-    best_row, best_map, best_score = None, {}, 0.0
+    best_row, best_map, best_score = None, None, -1
     for ri, row in enumerate(rows[:10]):
         cells = [c for c in row if c is not None and str(c).strip()]
         if len(cells) < 3:
             continue
-        mapping, score, hits = {}, 0.0, 0
-        for ci, c in enumerate(row):
-            if c is None:
-                continue
-            h = _norm_head(c)
-            if not h or len(h) > 60:
-                continue
-            key, sc = _match_column(h)
-            if key and sc >= 2.0 and key not in mapping.values():
-                mapping[ci] = key
-                score += sc
-                hits += 1
-        if hits >= 3 and score > best_score:
+        mapping = _map_header(row)
+        score = len(mapping)
+        core = set(mapping.values()) & {"number", "station", "ip", "model",
+                                        "address", "city", "tid"}
+        if score >= 3 and len(core) >= 1 and score > best_score:
             best_row, best_map, best_score = ri, mapping, score
     return best_row, best_map
-
-
-def _find_header(rows):
-    hdr_i, colmap = _detect_header_row(rows)
-    if hdr_i is not None:
-        return hdr_i, colmap
-    for ri, row in enumerate(rows[:6]):
-        hints = sum(1 for c in row if c is not None and
-                    any(x in _norm_head(str(c)) for x in _HEADER_HINTS))
-        if hints >= 3:
-            _, colmap = _detect_header_row([row])
-            return ri, colmap
-    return -1, {}
 
 
 def _cell_to_str(v):
@@ -187,200 +171,223 @@ def _cell_to_str(v):
     if isinstance(v, float) and v.is_integer():
         return str(int(v))
     if isinstance(v, (datetime.datetime, datetime.date)):
-        return v.strftime("%d.%m.%Y")
+        try:
+            return v.strftime("%d.%m.%Y")
+        except Exception:
+            return str(v)
     return str(v).strip()
-
-
-def _guess_scheme(val: str) -> str:
-    v = (val or "").lower()
-    if any(x in v for x in ("dhcp", "динам", "автомат")):
-        if any(x in v for x in ("стат", "static", "ручн")):
-            return "dhcp+static"
-        return "dhcp"
-    if any(x in v for x in ("static", "стат", "ручн", "фикс")):
-        return "static"
-    return ""
-
-
-def _guess_type(val: str) -> str:
-    v = (val or "").upper()
-    if "BPA" in v or "БПА" in v or "БИЛЕТ" in v:
-        return "BPA"
-    if "APB" in v or "АБР" in v or "ПАРК" in v or "ПЛАТН" in v:
-        return "APB"
-    return v.strip()
 
 
 def _looks_like_ip(v: str) -> bool:
     return bool(re.fullmatch(r"(\d{1,3}\.){3}\d{1,3}", v))
 
 
-_IP_RE = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
+_CITY_WORDS = {"г", "город", "г-к", "п", "пгт", "пос", "поселок", "деревня",
+               "село", "ст", "хутор", "рп", "кп", "дп", "посёлок", "дер", "сел"}
+
+# Округи/районы МО -> город для поиска
+_MO_MAP = {
+    "одинцовский": "Одинцово", "рузский": "Руза",
+}
 
 
-def _extract_missing(rec: dict, raw_cells):
-    joined = " ".join(_cell_to_str(c) for c in raw_cells)
-    ips = [i for i in _IP_RE.findall(joined) if _looks_like_ip(i)]
-    if not rec.get("ip") and ips:
-        rec["ip"] = ips[0]
-    if not rec.get("mask"):
-        m = re.search(r"(?:маска|mask)[\s:]*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
-                      joined, re.I)
-        if m:
-            rec["mask"] = m.group(1)
-    if not rec.get("gateway"):
-        g = re.search(r"(?:шлюз|gateway|gw)[\s:]*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
-                      joined, re.I)
-        if g:
-            rec["gateway"] = g.group(1)
-    if not rec.get("vlan"):
-        vl = re.search(r"vlan[\s:\-]*(\d{1,4})", joined, re.I)
-        if vl:
-            rec["vlan"] = vl.group(1)
-    return rec
+def _extract_city(address: str, station: str = "") -> str:
+    """Город из адреса регистрации ('143081, Московская обл., г.о. Одинцово , ...')."""
+    addr = (address or "").strip()
+    if addr:
+        found = re.findall(
+            r"(?:^|[,;(]\s*)(?:г\.?\s*о\.?|город|г\.|рп|пгт)\s*"
+            r"([A-Za-zА-Яа-я][\w\- ]{2,})", addr)
+        cands = []
+        for f in found:
+            c = f.strip().rstrip(",.;: ").lower()
+            c = re.split(r"\s+(?:ул|кв-?л|кв|пл|ш|д|стр|б-р|пер|пр-?кт|мкр|р-?н)\b", c)[0].strip()
+            if c and c not in _CITY_WORDS:
+                cands.append(c)
+        if re.search(r"(^|[,(]\s*)г\.?\s*москва\b", addr, re.I):
+            return "Москва"
+        for c in cands:
+            if c in _MO_MAP:
+                return _MO_MAP[c]
+        if cands:
+            return cands[0].capitalize()
+    st = (station or "").strip()
+    if st:
+        return "Москва" if st.lower() == "москва" else st.capitalize()
+    return ""
 
 
-def _parse_sheet(name: str, rows):
-    rows = [r for r in rows if any(c is not None and str(c).strip() for c in r)]
-    if not rows:
-        return []
-    hdr_i, colmap = _find_header(rows)
-    width = max(len(r) for r in rows)
-    header_row = rows[hdr_i] if hdr_i >= 0 else []
-    records = []
-    for row in rows[hdr_i + 1:]:
-        cells = [_cell_to_str(c) for c in row] + [""] * (width - len(row))
-        rec = {k: "" for k in _ALIASES}
-        extras = []
-        for ci, val in enumerate(cells):
-            key = colmap.get(ci)
-            if key:
-                if val and not rec[key]:
-                    rec[key] = val
-            elif val:
-                head = _cell_to_str(header_row[ci]) if ci < len(header_row) else ""
-                extras.append(f"{head}: {val}" if head else val)
-        rec["_extras"] = "; ".join(extras)[:400]
-        if hdr_i < 0 or len(colmap) < 3:
-            for v in cells:
-                if not v:
-                    continue
-                if _looks_like_ip(v) and not rec["ip"]:
-                    rec["ip"] = v
-                elif re.search(r"[А-Яа-яA-Za-z]+\s*\d+\-\d+", v) and not rec["tm_model"]:
-                    rec["tm_model"] = v
-        rec = _extract_missing(rec, row)
-        if not (rec.get("ip") or rec.get("number") or rec.get("station")
-                or rec.get("model") or rec.get("tm_model") or rec.get("city")):
-            continue
-        rec["_sheet"] = name
-        records.append(rec)
-    return records
+def _guess_scheme(val: str, rec: dict) -> str:
+    v = (val or "").lower()
+    conn = (rec.get("connection") or "").upper()
+    if any(x in v for x in ("dhcp", "динам", "автомат")):
+        return "dhcp+static" if any(x in v for x in ("стат", "static", "ручн")) else "dhcp"
+    if any(x in v for x in ("static", "стат", "ручн", "фикс")):
+        return "static"
+    if conn == "GSM":
+        return "GSM"
+    if rec.get("ip"):
+        return "static"
+    return ""
 
 
-def parse_xlsx(path: str):
+def _guess_type(tm_model: str, fallback: str = "") -> str:
+    v = (tm_model or "").upper()
+    if "БПА" in v or "BPA" in v:
+        return "BPA"
+    if "АПБ" in v or "APB" in v:
+        return "APB"
+    fv = (fallback or "").upper()
+    if "BPA" in fv or "БИЛЕТ" in fv:
+        return "BPA"
+    if "APB" in fv or "ПАРК" in fv:
+        return "APB"
+    return (fallback or "").strip().upper() or "BPA"
+
+
+def _rows_from_xlsx(path):
     wb = load_workbook(path, data_only=True, read_only=True)
-    all_records, sheets_used = [], []
+    out = []
     for ws in wb.worksheets:
         rows = [list(r) for r in ws.iter_rows(values_only=True)]
-        recs = _parse_sheet(ws.title, rows)
-        if recs:
-            sheets_used.append((ws.title, len(recs)))
-        all_records.extend(recs)
+        rows = [r for r in rows if any(c is not None and str(c).strip() for c in r)]
+        if rows:
+            out.append((ws.title, rows))
     wb.close()
-    return all_records, sheets_used
+    return out
 
 
-def parse_xls(path: str):
+def _rows_from_xls(path):
     import xlrd
     book = xlrd.open_workbook(path)
-    records, sheets_used = [], []
+    out = []
     for sh in book.sheets():
-        grid = []
-        for r in range(sh.nrows):
-            grid.append([sh.cell_value(r, c) if sh.cell_value(r, c) != "" else None
-                         for c in range(sh.ncols)])
-        recs = _parse_sheet(sh.name, grid)
-        if recs:
-            sheets_used.append((sh.name, len(recs)))
-        records.extend(recs)
-    return records, sheets_used
+        grid = [[sh.cell_value(r, c) if sh.cell_value(r, c) != "" else None
+                 for c in range(sh.ncols)] for r in range(sh.nrows)]
+        rows = [r for r in grid if any(c is not None and str(c).strip() for c in r)]
+        if rows:
+            out.append((sh.name, rows))
+    return out
 
 
 def parse_file(path: str):
     low = path.lower()
     if low.endswith((".xlsx", ".xlsm")):
-        return parse_xlsx(path)
-    if low.endswith(".xls"):
-        if HAS_XLRD:
-            return parse_xls(path)
-        raise ValueError("Для .xls нужен пакет xlrd (pip install xlrd) или пересохраните в .xlsx")
-    raise ValueError("Поддерживаются файлы .xls и .xlsx")
+        sheets = _rows_from_xlsx(path)
+    elif low.endswith(".xls"):
+        if not HAS_XLRD:
+            raise ValueError("Для .xls нужен пакет xlrd (pip install xlrd) или пересохраните в .xlsx")
+        sheets = _rows_from_xls(path)
+    else:
+        raise ValueError("Поддерживаются файлы .xls и .xlsx")
+
+    all_records, sheets_used = [], []
+    for sheet_name, rows in sheets:
+        hdr_i, colmap = _detect_header_row(rows)
+        if hdr_i is None:
+            hdr_i, colmap = -1, {}
+        records = []
+        for row in rows[hdr_i + 1:]:
+            rec = {k: "" for k in _ALIASES}
+            for ci, key in colmap.items():
+                if ci < len(row):
+                    rec[key] = _cell_to_str(row[ci])
+            meaningful = [v for k, v in rec.items() if v and k != "pasp"]
+            if not meaningful:
+                continue
+            # если заголовков нет вообще — минимальная эвристика по содержимому
+            if not colmap:
+                ips = [_cell_to_str(c) for c in row if _looks_like_ip(_cell_to_str(c))]
+                if not ips:
+                    continue
+                rec["ip"] = ips[0]
+                if len(ips) > 1:
+                    rec["ip_pinpad"] = ips[1]
+                if len(ips) > 2:
+                    rec["ip_fr"] = ips[2]
+                nums = [_cell_to_str(c) for c in row
+                        if re.fullmatch(r"\d{4,6}", _cell_to_str(c))]
+                if nums:
+                    rec["number"] = nums[-1]
+            rec["_sheet"] = sheet_name
+            records.append(rec)
+        if records:
+            sheets_used.append((sheet_name, len(records)))
+        all_records.extend(records)
+    return all_records, sheets_used
 
 
 # ---------------------------------------------------------------------------
-# Преобразование записи файла -> карточка объекта для фронтенда
+# Запись файла -> карточка объекта
 # ---------------------------------------------------------------------------
+_EXTRA_LABELS = [
+    ("direction", "Направление"), ("section", "Участок"), ("zav", "Зав. №"),
+    ("sn_pinpad", "s/n Pin-Pad"), ("place", "Место расчетов"),
+    ("mcd", "Прин-сть к МЦД"), ("region", "Регион"),
+]
+
+
 def to_card(rec: dict, idx: int):
-    num = (rec.get("number") or rec.get("serial") or rec.get("tid")
-           or f"N-{idx:04d}").strip()
-    # тип билетомата: явная колонка «тип», иначе по модели БПА (БПА-* -> BPA)
-    raw_tm = rec.get("ticket_machine") or rec.get("type") or ""
-    ttype = _guess_type(raw_tm) or _guess_type(rec.get("tm_model", ""))
+    num = rec.get("number") or rec.get("zav") or f"N-{idx:04d}"
+    ttype = _guess_type(rec.get("tm_model", ""), rec.get("type", ""))
+    city = rec.get("city") or _extract_city(rec.get("address", ""),
+                                            rec.get("station", ""))
     station = rec.get("station", "")
-    city = rec.get("city", "")
-    reg_addr = rec.get("reg_address", "")
-    place = rec.get("place", "")
-    address = rec.get("address", "") or place or reg_addr
     conn = rec.get("connection", "")
-    if not city:
-        m = re.search(r"\b(?:г\.|город)\s*([А-ЯЁ][а-яё]+)", reg_addr or address)
-        if m and m.group(1).lower() not in ("о", "обл"):
-            city = m.group(1)
-        elif "москв" in (reg_addr + " " + address).lower():
-            city = "Москва"
+    scheme = _guess_scheme(rec.get("scheme", ""), rec)
+    parts = []
+    if station:
+        parts.append(f"ст. {station}")
+    for key, label in _EXTRA_LABELS:
+        if rec.get(key):
+            parts.append(f"{label}: {rec[key]}")
+    if conn:
+        parts.append(f"Тип связи: {conn}")
+    if rec.get("ip_pinpad"):
+        parts.append(f"IP Pin-Pad: {rec['ip_pinpad']}")
+    if rec.get("ip_fr"):
+        parts.append(f"IP ФР: {rec['ip_fr']}")
+    notes = rec.get("notes", "")
+    if parts:
+        notes = (notes + "\n" if notes else "") + " · ".join(parts)
     card = {
         "id": f"OBJ-{num}",
         "source": "upload",
         "object": True,
         "number": num,
-        "serial": rec.get("serial", ""),
         "city": city,
         "station": station,
+        "address": rec.get("address", ""),
         "direction": rec.get("direction", ""),
         "section": rec.get("section", ""),
-        "address": address,
-        "reg_address": reg_addr,
-        "place": place,
+        "zav": rec.get("zav", ""),
+        "tid": rec.get("tid", ""),
+        "sn_pinpad": rec.get("sn_pinpad", ""),
+        "ip_pinpad": rec.get("ip_pinpad", ""),
+        "ip_fr": rec.get("ip_fr", ""),
         "region": rec.get("region", ""),
         "mcd": rec.get("mcd", ""),
-        "ticket_machine": ttype or "—",
+        "ticket_machine": ttype,
         "tm_model": rec.get("tm_model", ""),
-        "model": rec.get("model", "") or "—",
+        "model": rec.get("model", ""),
         "vendor": rec.get("vendor", ""),
         "ip": rec.get("ip", ""),
-        "pinpad_ip": rec.get("pinpad_ip", ""),
-        "fr_ip": rec.get("fr_ip", ""),
         "mask": rec.get("mask", ""),
         "gateway": rec.get("gateway", ""),
         "dns": rec.get("dns", ""),
         "vlan": rec.get("vlan", ""),
-        "ip_scheme": _guess_scheme(rec.get("scheme", "")) or ("static" if rec.get("ip") else ""),
-        "connection": conn,
+        "ip_scheme": scheme,
         "server": rec.get("server", ""),
         "ports_out": rec.get("ports", ""),
-        "com_port": rec.get("interface", ""),
+        "connection": conn,
+        "com_port": "",
         "sim": rec.get("sim", ""),
-        "tid": rec.get("tid", ""),
-        "sn_pinpad": rec.get("sn_pinpad", ""),
         "auth": "",
         "firmware": rec.get("firmware", ""),
         "setup_steps": [],
-        "notes": rec.get("notes", ""),
-        "extras": rec.get("_extras", ""),
+        "notes": notes,
         "install_date": rec.get("install_date", ""),
-        "tags": [x for x in [city, station, rec.get("direction", ""),
-                             rec.get("section", ""), ttype, num,
-                             rec.get("_sheet", "")] if x],
+        "tags": [x for x in [city, station, ttype, num, rec.get("direction", ""),
+                             rec.get("section", ""), rec.get("_sheet", "")] if x],
     }
     return card

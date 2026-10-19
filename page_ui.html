@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CPPK — Сети терминалов BPA/APB | СберСервис</title>
+<title>CPPK — Сетевые настройки терминалов BPA/APB</title>
 <style>
   :root { --green:#00b359; --dark:#11151c; --card:#fff; --muted:#68727f; --bg:#f2f4f6; }
   * { box-sizing: border-box; }
@@ -64,10 +64,10 @@
 </head>
 <body>
 <header>
-  <div class="logo">СберСервис</div>
+  <div class="logo">CPPK</div>
   <div>
-    <h1>CPPK · Терминалы под билетоматы BPA / APB</h1>
-    <div class="sub">Объектная база + справочник · ищите по № билетомата, городу, адресу, IP, VLAN</div>
+    <h1>Сетевые настройки терминалов под билетоматы BPA / APB</h1>
+    <div class="sub">Ищите по городу, номеру билетомата, станции, адресу, IP, TID, s/n</div>
   </div>
 </header>
 <main>
@@ -80,24 +80,16 @@
   </div>
 
   <div class="searchbar">
-    <input id="q" placeholder="Номер БМА, город, адрес, IP, vlan 820, S920…" autocomplete="off" inputmode="search">
+    <input id="q" placeholder="Город + номер БПА, станция, адрес, IP, TID, s/n…" autocomplete="off" inputmode="search">
     <select id="city"><option value="">Все города</option></select>
     <select id="scheme">
       <option value="">Любая схема IP</option>
-      <option value="static">Static</option>
+      <option value="static">Static (СПД)</option>
+      <option value="GSM">GSM</option>
       <option value="dhcp">DHCP</option>
     </select>
   </div>
   <div class="hint">Ищите прямо с телефона · поиск нечувствителен к регистру и раскладке клавиатуры · файл можно перетащить на блок загрузки</div>
-  <div class="chips">
-    <button class="chip active" data-src="">🗂 Всё</button>
-    <button class="chip" data-src="obj">📍 Объекты из файла</button>
-    <button class="chip" data-src="ref">📚 Справочник моделей</button>
-    <span style="width:8px"></span>
-    <button class="chip active" data-tm="">Все типы</button>
-    <button class="chip" data-tm="BPA">🎫 BPA</button>
-    <button class="chip" data-tm="APB">🅿️ APB</button>
-  </div>
   <div class="count" id="count"></div>
   <div id="results"></div>
 
@@ -107,12 +99,11 @@
     __ERROR_ROWS__
   </table>
 </main>
-<footer>Внутренний инструмент СберСервис. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
+<footer>Внутренний инструмент. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
 
 <script>
 const REF = __REF__;
 let DATA = REF.concat(__OBJ__);
-let tmFilter = "", srcFilter = "";
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -131,7 +122,10 @@ function revTr(q){
   return out;
 }
 function hayOf(t){
-  const keys=["model","vendor","tm_model","connection","ip_scheme","ip","pinpad_ip","fr_ip","mask","gateway","dns","server","com_port","auth","firmware","notes","number","serial","city","station","direction","section","address","reg_address","place","region","mcd","tid","sn_pinpad","sim","ports_out","install_date","extras"];
+  const keys=["model","vendor","tm_model","connection","ip_scheme","ip","mask","gateway",
+              "dns","server","com_port","auth","firmware","notes","number","city","address",
+              "sim","ports_out","install_date","station","direction","section","zav","tid",
+              "sn_pinpad","ip_pinpad","ip_fr","region","mcd","place"];
   let a = keys.map(k=>t[k]||"").join(" ").toLowerCase();
   if(t.vlan) a += " vlan " + t.vlan;
   a += " " + (t.tags||[]).join(" ") + " " + (t.setup_steps||[]).join(" ");
@@ -151,33 +145,45 @@ function card(t){
   const isObj = !!t.object;
   const rows = [];
   if(isObj){
-    rows.push(kvRow("ID БПА", `<code>${esc(t.number)}</code>`));
-    if(t.serial) rows.push(kvRow("Зав. №", `<code>${esc(t.serial)}</code>`));
-    if(t.station || t.direction || t.section)
-      rows.push(kvRow("Объект", `${t.direction?esc(t.direction)+" · ":""}${t.section?esc(t.section)+" · ":""}ст. <b>${esc(t.station||"—")}</b>`));
-    if(t.city || t.address) rows.push(kvRow("Адрес", `${esc(t.city||"")}${t.address ? " — " + esc(t.address) : ""}`));
-    if(t.reg_address && t.reg_address !== t.address) rows.push(kvRow("Регистрация", esc(t.reg_address)));
+    rows.push(kvRow("№ билетомата (ID БПА)", `<code>${esc(t.number)}</code>`));
+    if(t.zav) rows.push(kvRow("Зав. №", `<code>${esc(t.zav)}</code>`));
+    if(t.station) rows.push(kvRow("Станция", esc(t.station)));
+    if(t.city || t.address) rows.push(kvRow("Адрес регистрации", `${esc(t.city||"")}${t.address ? " — " + esc(t.address) : ""}`));
     if(t.place) rows.push(kvRow("Место расчетов", esc(t.place)));
+    if(t.direction || t.section) rows.push(kvRow("Направление / Участок", `${esc(t.direction||"")}${t.section?" · "+esc(t.section):""}`));
+    if(t.tm_model) rows.push(kvRow("Модель БПА", esc(t.tm_model)));
+    if(t.model) rows.push(kvRow("POS-терминал", esc(t.model)));
+    if(t.ip) rows.push(kvRow("IP БПА", `<code>${esc(t.ip)}</code>`));
+    else rows.push(kvRow("IP БПА", "<span style='color:#68727f'>не назначен ("+esc(t.connection||"—")+")</span>"));
+    if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
+    if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
+    if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
+    if(t.ip_fr) rows.push(kvRow("IP ФР", `<code>${esc(t.ip_fr)}</code>`));
+    if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask||"—")}</code> / <code>${esc(t.gateway||"—")}</code>`));
+    if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
+    if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
+    if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
+    if(t.mcd) rows.push(kvRow("Прин-сть к МЦД", esc(t.mcd)));
+    if(t.region) rows.push(kvRow("Регион", esc(t.region)));
+    if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
+    if(t.sim) rows.push(kvRow("SIM / APN", esc(t.sim)));
+    if(t.firmware) rows.push(kvRow("Прошивка", esc(t.firmware)));
+    if(t.install_date) rows.push(kvRow("Дата установки", esc(t.install_date)));
+  } else {
+    if(t.ip) rows.push(kvRow("IP-адресация", `<code>${esc(t.ip)}</code> (${esc(t.ip_scheme||"—")})`));
+    if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask)}</code> / <code>${esc(t.gateway)}</code>`));
+    if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
+    if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
+    if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
+    if(t.connection) rows.push(kvRow("Интерфейс билетомата", esc(t.connection)));
+    if(t.sim) rows.push(kvRow("SIM / APN", esc(t.sim)));
+    if(t.auth) rows.push(kvRow("Аутентификация", esc(t.auth)));
+    if(t.firmware) rows.push(kvRow("Прошивка", esc(t.firmware)));
   }
-  if(t.ip) rows.push(kvRow("IP билетомата", `<code>${esc(t.ip)}</code> (${esc(t.ip_scheme||"—")})`));
-  if(t.pinpad_ip) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.pinpad_ip)}</code>`));
-  if(t.fr_ip) rows.push(kvRow("IP ФР (ККМ)", `<code>${esc(t.fr_ip)}</code>`));
-  if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask)}</code> / <code>${esc(t.gateway)}</code>`));
-  if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
-  if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
-  if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
-  if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
-  if(t.tid || t.sn_pinpad) rows.push(kvRow("Pin-Pad", `TID <code>${esc(t.tid||"—")}</code> · s/n <code>${esc(t.sn_pinpad||"—")}</code>`));
-  if(t.com_port) rows.push(kvRow("Интерфейс", esc(t.com_port)));
-  if(t.sim) rows.push(kvRow("SIM / APN", esc(t.sim)));
-  if(t.auth) rows.push(kvRow("Аутентификация", esc(t.auth)));
-  if(t.firmware) rows.push(kvRow("Прошивка", esc(t.firmware)));
-  if(t.install_date) rows.push(kvRow("Дата установки", esc(t.install_date)));
-  if(t.extras) rows.push(kvRow("Прочее", esc(t.extras)));
 
   const badges = [
     isObj ? `<span class="badge b-num">#${esc(t.number)}</span>` : "",
-    `<span class="badge b-${(t.ticket_machine||'').toLowerCase()}">${esc(t.ticket_machine||"?")}${t.tm_model&&t.tm_model!==t.ticket_machine?" · "+esc(t.tm_model):""}</span>`,
+    `<span class="badge b-${(t.ticket_machine||'').toLowerCase()}">${esc(t.ticket_machine||"?")}${t.tm_model?" · "+esc(t.tm_model):""}</span>`,
     t.vendor ? `<span class="badge b-vendor">${esc(t.vendor)}</span>` : "",
     t.ip_scheme ? `<span class="badge b-scheme">${esc(t.ip_scheme)}</span>` : "",
   ].join("");
@@ -185,13 +191,13 @@ function card(t){
   const steps = (t.setup_steps && t.setup_steps.length)
     ? `<details open><summary>Порядок настройки</summary><ol class="steps">${t.setup_steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></details>` : "";
   const note = t.notes ? `<div class="note">💡 ${esc(t.notes)}</div>` : "";
-  const title = isObj ? (t.station ? "ст. " + esc(t.station) : esc(t.model || "Объект")) : esc(t.model);
+  const title = isObj
+    ? esc([t.city, t.station ? "ст. "+t.station : ""].filter(Boolean).join(", ") || t.model || "Объект")
+    : esc(t.model);
   return `<div class="card${isObj?' obj':''}">
     <button class="copy" onclick="copyCard(this)">📋 Копировать</button>
     <h2>${title}</h2>
-    ${isObj && t.model && t.station ? `<div class="loc">🖥 ${esc(t.model)}${t.tm_model?" · "+esc(t.tm_model):""}</div>`:""}
-    ${isObj && (t.city||t.address) ? `<div class="loc">📍 <b>${esc(t.city||"")}</b>${t.address?" · "+esc(t.address):""}</div>`:
-      (isObj && t.place ? `<div class="loc">📍 ${esc(t.place)}</div>` : "")}
+    ${isObj && (t.address) ? `<div class="loc">📍 ${esc(t.address)}</div>`:""}
     <div class="badges">${badges}</div>
     <table class="kv">${rows.join("")}</table>
     ${steps}${note}
@@ -204,21 +210,31 @@ function render(){
   const city = document.getElementById('city').value;
   const sc = document.getElementById('scheme').value;
   const words = q.split(/\s+/).filter(Boolean);
-  const res = DATA.filter(t=>{
-    if(srcFilter==="obj" && !t.object) return false;
-    if(srcFilter==="ref" && t.object) return false;
-    if(tmFilter && (t.ticket_machine||"").toUpperCase()!==tmFilter) return false;
+  let res = DATA.filter(t=>{
     if(city && norm(t.city||"")!==norm(city)) return false;
-    if(sc && !(t.ip_scheme||"").includes(sc)) return false;
+    if(sc && !(t.ip_scheme||"").toLowerCase().includes(sc.toLowerCase())) return false;
     if(words.length){
       const hay = hayOf(t);
       return words.every(w=>matchWord(hay, w));
     }
     return true;
   });
+  // релевантность: точное совпадение номера/города — выше; объекты из файла — первыми
+  if(words.length){
+    const first = words[0];
+    res.sort((a,b)=>{
+      const an = norm(String(a.number||"")), bn = norm(String(b.number||""));
+      if(an===first && bn!==first) return -1;
+      if(bn===first && an!==first) return 1;
+      const ao = a.object?0:1, bo = b.object?0:1;
+      return ao-bo;
+    });
+  } else {
+    res = res.filter(r=>r.object).concat(res.filter(r=>!r.object));
+  }
   const objs = res.filter(r=>r.object).length;
   document.getElementById('count').textContent =
-    `Найдено: ${res.length} (объектов из файла: ${objs}) · всего в базе: ${DATA.length}`;
+    `Найдено: ${res.length} (объектов: ${objs}) · всего в базе: ${DATA.length}`;
   document.getElementById('results').innerHTML = res.length ? res.map(card).join("")
     : '<div class="empty">Ничего не найдено. Попробуйте другой запрос или загрузите XLS.</div>';
 }
@@ -252,14 +268,7 @@ async function doUpload(f){
     fillCities(); render();
     document.getElementById('clrBtn').style.display='';
     st.className='ustatus ok';
-    const parts = [`✅ Импортировано объектов: ${j.imported}`];
-    if(j.sheets && j.sheets.length) parts.push(`листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}`);
-    if(j.recognized && j.recognized.length) parts.push(`распознанные колонки: ${j.recognized.join(", ")}`);
-    if(j.cities && j.cities.length) parts.push(`городов: ${j.cities.length}`);
-    st.textContent = parts.join(" · ");
-    if(j.unrecognized && j.unrecognized.length){
-      st.innerHTML += `<br><small>Не распознаны как отдельные поля (сохранены в «Прочее», ищутся): ${esc(j.unrecognized.join(", "))}</small>`;
-    }
+    st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
 }
 async function clearBase(){
@@ -279,14 +288,6 @@ up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTrans
 document.getElementById('q').addEventListener('input', render);
 document.getElementById('city').addEventListener('change', render);
 document.getElementById('scheme').addEventListener('change', render);
-document.querySelectorAll('.chip[data-src]').forEach(ch=>ch.addEventListener('click',()=>{
-  document.querySelectorAll('.chip[data-src]').forEach(c=>c.classList.remove('active'));
-  ch.classList.add('active'); srcFilter=ch.dataset.src; render();
-}));
-document.querySelectorAll('.chip[data-tm]').forEach(ch=>ch.addEventListener('click',()=>{
-  document.querySelectorAll('.chip[data-tm]').forEach(c=>c.classList.remove('active'));
-  ch.classList.add('active'); tmFilter=ch.dataset.tm; render();
-}));
 
 if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
 fillCities();

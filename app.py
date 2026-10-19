@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Веб-сервис «Сетевые настройки терминалов BPA/APB» для разъездных инженеров СберСервис.
+"""Веб-сервис «Сетевые настройки терминалов BPA/APB» для разъездных инженеров.
 
 Возможности:
   * поиск по встроенному справочнику терминалов и типовым ошибкам;
@@ -31,7 +31,7 @@ UPLOAD_STORE = os.path.join(BASE_DIR, "upload_store.json")
 app = FastAPI(
     title="CPPK — база сетевых настроек терминалов BPA/APB",
     description="Поиск сетевых настроек банковских терминалов под билетоматы BPA и APB "
-                "для разъездных инженеров СберСервис. Загрузка XLS/XLSX с объектами.",
+                "для разъездных инженеров. Загрузка XLS/XLSX с объектами.",
     version="2.0.0",
 )
 
@@ -130,11 +130,11 @@ def _search(text: str, needle: str) -> bool:
 def _haystack(t: dict) -> str:
     parts = []
     for key in ("model", "vendor", "ticket_machine", "tm_model", "connection",
-                "ip_scheme", "ip", "pinpad_ip", "fr_ip", "mask", "gateway", "dns",
-                "server", "com_port", "auth", "firmware", "notes", "number",
-                "serial", "city", "station", "direction", "section", "address",
-                "reg_address", "place", "region", "mcd", "tid", "sn_pinpad",
-                "sim", "ports_out", "install_date", "extras"):
+                "ip_scheme", "ip", "mask", "gateway", "dns", "server", "com_port",
+                "auth", "firmware", "notes", "number", "city", "address",
+                "sim", "ports_out", "install_date", "station", "direction",
+                "section", "zav", "tid", "sn_pinpad", "ip_pinpad", "ip_fr",
+                "region", "mcd", "place"):
         if t.get(key):
             parts.append(str(t[key]))
     if t.get("vlan"):
