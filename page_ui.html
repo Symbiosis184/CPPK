@@ -143,15 +143,15 @@ function card(t){
     if(t.direction || t.section) rows.push(kvRow("Направление / Участок", `${esc(t.direction||"")}${t.section?" · "+esc(t.section):""}`));
     if(t.tm_model) rows.push(kvRow("Модель БПА", esc(t.tm_model)));
     if(t.model) rows.push(kvRow("POS-терминал", esc(t.model)));
-    if(t.ip) rows.push(kvRow("IP БПА", `<code>${esc(t.ip)}</code>`));
-    else rows.push(kvRow("IP БПА", "<span style='color:#68727f'>не назначен ("+esc(t.connection||"—")+")</span>"));
-    // маска и шлюз — сразу под IP билетомата
+    // порядок полей: TID → IP PinPad → Шлюз → Маска → IP БПА → IP ФР → s/n → тип связи
+    if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
+    if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
     if(t.gateway) rows.push(kvRow("Шлюз", `<code>${esc(t.gateway)}</code>`));
     if(t.mask) rows.push(kvRow("Маска", `<code>${esc(t.mask)}</code>`));
-    if(t.ip_pinpad) rows.push(kvRow("IP Pin-Pad", `<code>${esc(t.ip_pinpad)}</code>`));
-    if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
-    if(t.tid) rows.push(kvRow("TID Pin-Pad", `<code>${esc(t.tid)}</code>`));
+    if(t.ip) rows.push(kvRow("IP БПА", `<code>${esc(t.ip)}</code>`));
+    else rows.push(kvRow("IP БПА", "<span style='color:#68727f'>не назначен ("+esc(t.connection||"—")+")</span>"));
     if(t.ip_fr) rows.push(kvRow("IP ФР", `<code>${esc(t.ip_fr)}</code>`));
+    if(t.sn_pinpad) rows.push(kvRow("s/n Pin-Pad", `<code>${esc(t.sn_pinpad)}</code>`));
     if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
     if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
     if(t.connection) rows.push(kvRow("Тип связи", esc(t.connection)));
