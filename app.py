@@ -19,7 +19,7 @@ import re
 import unicodedata
 from typing import List
 
-from fastapi import FastAPI, File, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from data import TERMINALS, ERRORS
@@ -222,9 +222,13 @@ async def upload(file: UploadFile = File(...)):
             "cities": cities, "cards": cards}
 
 
+ADMIN_PASSWORD = "25122023"  # пароль на удаление загруженной базы
+
 @app.delete("/api/upload")
-def clear_upload():
+def clear_upload(password: str = Query("")):
     global UPLOADED
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Неверный пароль")
     UPLOADED = []
     if os.path.exists(UPLOAD_STORE):
         os.remove(UPLOAD_STORE)

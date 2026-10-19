@@ -72,6 +72,7 @@
   <div class="uploader" id="uploader">
     <button class="ubtn" onclick="document.getElementById('file').click()">📄 Загрузить XLS/XLSX</button>
     <input type="file" id="file" accept=".xls,.xlsx,.xlsm">
+    <button class="ubtn sec" onclick="clearBase()">🗑 Удалить базу</button>
     <div class="ustatus" id="ustatus"></div>
   </div>
 
@@ -259,6 +260,20 @@ const up = document.getElementById('uploader');
 ['dragover','dragenter'].forEach(ev=>up.addEventListener(ev,e=>{e.preventDefault(); up.classList.add('drag');}));
 ['dragleave','drop'].forEach(ev=>up.addEventListener(ev,e=>{e.preventDefault(); up.classList.remove('drag');}));
 up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
+
+// ---------- удаление базы (только по паролю) ----------
+async function clearBase(){
+  const pw = prompt("Введите пароль для удаления загруженной базы:");
+  if(pw === null) return;
+  const st = document.getElementById('ustatus');
+  try{
+    const r = await fetch('/api/upload?password='+encodeURIComponent(pw), {method:'DELETE'});
+    const j = await r.json().catch(()=>({ok:false}));
+    if(r.status===403 || !j.ok){ st.className='ustatus err'; st.textContent='❌ Неверный пароль — база не удалена'; return; }
+    DATA = REF.slice(); render();
+    st.className='ustatus ok'; st.textContent='✅ Загруженная база удалена';
+  }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
+}
 
 // ---------- поиск ----------
 document.getElementById('q').addEventListener('input', render);
