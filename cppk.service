@@ -1,0 +1,15 @@
+[Unit]
+Description=SberService BPA/APB network settings web service
+After=network.target
+
+[Service]
+Type=simple
+# путь к каталогу с кодом на VPS (поправьте при размещении в другом месте)
+WorkingDirectory=/opt/cppk
+ExecStart=/usr/bin/python3 /opt/cppk/app.py
+Restart=always
+RestartSec=3
+Environment=PORT=9000
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPPK — Сети терминалов BPA/APB | СберСервис</title>
+<style>
+  :root { --green:#00b359; --dark:#11151c; --card:#fff; --muted:#68727f; --bg:#f2f4f6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:#1b1f24; }
+  header { background:var(--dark); color:#fff; padding:14px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header .logo { background:var(--green); color:#fff; font-weight:800; padding:6px 12px; border-radius:8px; letter-spacing:.5px; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  header .sub { color:#9aa4af; font-size:12px; }
+  main { max-width:1100px; margin:0 auto; padding:18px 16px 60px; }
+  .uploader { background:var(--card); border:2px dashed #b9c3cd; border-radius:14px; padding:14px 16px; margin-bottom:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .uploader.drag { border-color:var(--green); background:#eafaf1; }
+  .uploader input[type=file] { display:none; }
+  .ubtn { background:var(--green); color:#fff; border:none; padding:11px 18px; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; }
+  .ubtn.sec { background:#eef1f4; color:#333; }
+  .ustatus { font-size:13.5px; color:var(--muted); flex:1; min-width:200px; }
+  .ustatus.err { color:#d23; }
+  .ustatus.ok { color:#00794a; }
+  .searchbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  #q { flex:1; min-width:240px; padding:13px 16px; font-size:16px; border:2px solid #cfd6dd; border-radius:10px; outline:none; }
+  #q:focus { border-color:var(--green); }
+  select { padding:0 12px; font-size:14px; border:2px solid #cfd6dd; border-radius:10px; background:#fff; height:48px; }
+  .hint { color:var(--muted); font-size:12.5px; margin:4px 2px 14px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .chip { padding:7px 16px; border-radius:999px; border:1.5px solid #cfd6dd; background:#fff; cursor:pointer; font-size:14px; font-weight:600; }
+  .chip.active { background:var(--green); border-color:var(--green); color:#fff; }
+  .count { color:var(--muted); font-size:13px; margin:0 2px 10px; }
+  .card { background:var(--card); border-radius:14px; padding:16px 18px; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,24,32,.08); }
+  .card.obj { border-left:5px solid var(--green); }
+  .card h2 { margin:0 0 2px; font-size:18px; }
+  .loc { font-size:14px; margin:2px 0 6px; }
+  .loc b { font-size:15px; }
+  .badges { margin:4px 0 10px; }
+  .badge { display:inline-block; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; margin-right:6px; }
+  .b-bpa { background:#e6f7ee; color:#00794a; }
+  .b-apb { background:#e8f0fe; color:#1a56c4; }
+  .b-vendor { background:#f3e8ff; color:#7a3ff2; }
+  .b-scheme { background:#fff3e0; color:#b25b00; }
+  .b-num { background:#11151c; color:#fff; font-size:13px; }
+  table.kv { width:100%; border-collapse:collapse; font-size:14px; }
+  table.kv td { padding:5px 8px; vertical-align:top; border-bottom:1px solid #eef1f4; }
+  table.kv td:first-child { color:var(--muted); width:220px; white-space:nowrap; }
+  table.kv code, .mono { font-family:'SF Mono',Consolas,monospace; background:#f0f3f6; padding:2px 6px; border-radius:6px; font-size:13px; word-break:break-all; }
+  ol.steps { margin:8px 0 4px; padding-left:22px; font-size:14px; }
+  ol.steps li { margin:4px 0; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; font-weight:600; font-size:14px; color:#1a56c4; }
+  .note { margin-top:10px; background:#fffbe8; border-left:4px solid #f0b429; padding:8px 12px; border-radius:0 8px 8px 0; font-size:13.5px; }
+  .copy { float:right; font-size:12px; padding:6px 12px; border:1px solid #cfd6dd; border-radius:8px; background:#fafbfc; cursor:pointer; }
+  .copy:hover { border-color:var(--green); color:var(--green); }
+  .err-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .err-table th, .err-table td { border:1px solid #e3e8ed; padding:7px 9px; text-align:left; }
+  .err-table th { background:#f6f8fa; }
+  h3.sec { margin:26px 0 10px; font-size:16px; }
+  .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:15px; }
+  footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+  @media (max-width:640px){ table.kv td:first-child{width:130px;} main{padding:12px 10px 60px;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">СберСервис</div>
+  <div>
+    <h1>CPPK · Терминалы под билетоматы BPA / APB</h1>
+    <div class="sub">Объектная база + справочник · ищите по № билетомата, городу, адресу, IP, VLAN</div>
+  </div>
+</header>
+<main>
+  <!-- ЗАГРУЗКА XLS -->
+  <div class="uploader" id="uploader">
+    <button class="ubtn" onclick="document.getElementById('file').click()">📄 Загрузить XLS/XLSX</button>
+    <input type="file" id="file" accept=".xls,.xlsx,.xlsm">
+    <button class="ubtn sec" id="clrBtn" style="display:none" onclick="clearBase()">✖ Удалить базу</button>
+    <div class="ustatus" id="ustatus"></div>
+  </div>
+
+  <div class="searchbar">
+    <input id="q" placeholder="Номер БМА, город, адрес, IP, vlan 820, S920…" autocomplete="off" inputmode="search">
+    <select id="city"><option value="">Все города</option></select>
+    <select id="scheme">
+      <option value="">Любая схема IP</option>
+      <option value="static">Static</option>
+      <option value="dhcp">DHCP</option>
+    </select>
+  </div>
+  <div class="hint">Ищите прямо с телефона · поиск нечувствителен к регистру и раскладке клавиатуры · файл можно перетащить на блок загрузки</div>
+  <div class="chips">
+    <button class="chip active" data-src="">🗂 Всё</button>
+    <button class="chip" data-src="obj">📍 Объекты из файла</button>
+    <button class="chip" data-src="ref">📚 Справочник моделей</button>
+    <span style="width:8px"></span>
+    <button class="chip active" data-tm="">Все типы</button>
+    <button class="chip" data-tm="BPA">🎫 BPA</button>
+    <button class="chip" data-tm="APB">🅿️ APB</button>
+  </div>
+  <div class="count" id="count"></div>
+  <div id="results"></div>
+
+  <h3 class="sec">⚡ Быстрая диагностика типовых ошибок</h3>
+  <table class="err-table">
+    <tr><th>Код</th><th>Симптом</th><th>Причина</th><th>Что делать</th></tr>
+    __ERROR_ROWS__
+  </table>
+</main>
+<footer>Внутренний инструмент СберСервис. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
+
+<script>
+const REF = __REF__;
+let DATA = REF.concat(__OBJ__);
+let tmFilter = "", srcFilter = "";
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function norm(s){
+  const tr = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
+  return s.toLowerCase().split('').map(c=>tr[c]!==undefined?tr[c]:c).join('');
+}
+const lat2cyr = {'zh':'ж','sch':'щ','yu':'ю','ya':'я','kh':'х','a':'а','b':'б','v':'в','g':'г','d':'д','e':'е','z':'з','i':'и','y':'ы','k':'к','l':'л','m':'м','n':'н','o':'о','p':'п','r':'р','s':'с','t':'т','u':'у','f':'ф','h':'х','c':'ц','ch':'ч','sh':'ш','x':'х','j':'й','w':'ш'};
+function revTr(q){
+  let out='', i=0;
+  while(i<q.length){
+    let m=null;
+    for(const L of [3,2,1]){ const ch=q.slice(i,i+L); if(lat2cyr[ch]!==undefined){ m=[ch,L]; break; } }
+    if(m){ out+=lat2cyr[m[0]]; i+=m[1]; } else { out+=q[i]; i++; }
+  }
+  return out;
+}
+function hayOf(t){
+  const keys=["model","vendor","tm_model","connection","ip_scheme","ip","mask","gateway","dns","server","com_port","auth","firmware","notes","number","city","address","sim","ports_out","install_date"];
+  let a = keys.map(k=>t[k]||"").join(" ").toLowerCase();
+  if(t.vlan) a += " vlan " + t.vlan;
+  a += " " + (t.tags||[]).join(" ") + " " + (t.setup_steps||[]).join(" ");
+  return a;
+}
+const qw2cyr = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ','\\':'ё','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',"'":'э','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'};
+function qwTr(q){ return q.split('').map(c=>qw2cyr[c]!==undefined?qw2cyr[c]:c).join(''); }
+function matchWord(hayLowered, w){
+  const cands = new Set([w, norm(w), norm(qwTr(w))]);
+  if(/^[\x00-\x7f]+$/.test(w)){ const cyr = revTr(w); cands.add(norm(cyr)); cands.add(norm(qwTr(cyr))); }
+  return [...cands].some(c => hayLowered.includes(c));
+}
+
+function kvRow(label, val){ return `<tr><td>${label}</td><td>${val}</td></tr>`; }
+
+function card(t){
+  const isObj = !!t.object;
+  const rows = [];
+  if(isObj){
+    rows.push(kvRow("№ билетомата", `<code>${esc(t.number)}</code>`));
+    if(t.city || t.address) rows.push(kvRow("Адрес", `${esc(t.city||"")}${t.address ? " — " + esc(t.address) : ""}`));
+  }
+  if(t.ip) rows.push(kvRow("IP-адресация", `<code>${esc(t.ip)}</code> (${esc(t.ip_scheme||"—")})`));
+  if(t.mask || t.gateway) rows.push(kvRow("Маска / Шлюз", `<code>${esc(t.mask)}</code> / <code>${esc(t.gateway)}</code>`));
+  if(t.dns) rows.push(kvRow("DNS", `<code>${esc(t.dns)}</code>`));
+  if(t.vlan) rows.push(kvRow("VLAN", `<code>${esc(t.vlan)}</code>`));
+  if(t.server || t.ports_out) rows.push(kvRow("Серверы / порты", esc(t.server)+(t.ports_out?"<br>"+esc(t.ports_out):"")));
+  if(t.connection) rows.push(kvRow("Интерфейс билетомата", esc(t.connection)));
+  if(t.sim) rows.push(kvRow("SIM / APN", esc(t.sim)));
+  if(t.auth) rows.push(kvRow("Аутентификация", esc(t.auth)));
+  if(t.firmware) rows.push(kvRow("Прошивка", esc(t.firmware)));
+  if(t.install_date) rows.push(kvRow("Дата установки", esc(t.install_date)));
+
+  const badges = [
+    isObj ? `<span class="badge b-num">#${esc(t.number)}</span>` : "",
+    `<span class="badge b-${(t.ticket_machine||'').toLowerCase()}">${esc(t.ticket_machine||"?")}${t.tm_model?" · "+esc(t.tm_model):""}</span>`,
+    t.vendor ? `<span class="badge b-vendor">${esc(t.vendor)}</span>` : "",
+    t.ip_scheme ? `<span class="badge b-scheme">${esc(t.ip_scheme)}</span>` : "",
+  ].join("");
+
+  const steps = (t.setup_steps && t.setup_steps.length)
+    ? `<details open><summary>Порядок настройки</summary><ol class="steps">${t.setup_steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></details>` : "";
+  const note = t.notes ? `<div class="note">💡 ${esc(t.notes)}</div>` : "";
+  const title = isObj ? esc(t.model || "Объект") : esc(t.model);
+  return `<div class="card${isObj?' obj':''}">
+    <button class="copy" onclick="copyCard(this)">📋 Копировать</button>
+    <h2>${title}</h2>
+    ${isObj && (t.city||t.address) ? `<div class="loc">📍 <b>${esc(t.city||"")}</b>${t.address?" · "+esc(t.address):""}</div>`:""}
+    <div class="badges">${badges}</div>
+    <table class="kv">${rows.join("")}</table>
+    ${steps}${note}
+  </div>`;
+}
+
+function render(){
+  const qRaw = document.getElementById('q').value.trim();
+  const q = norm(qRaw);
+  const city = document.getElementById('city').value;
+  const sc = document.getElementById('scheme').value;
+  const words = q.split(/\s+/).filter(Boolean);
+  const res = DATA.filter(t=>{
+    if(srcFilter==="obj" && !t.object) return false;
+    if(srcFilter==="ref" && t.object) return false;
+    if(tmFilter && (t.ticket_machine||"").toUpperCase()!==tmFilter) return false;
+    if(city && norm(t.city||"")!==norm(city)) return false;
+    if(sc && !(t.ip_scheme||"").includes(sc)) return false;
+    if(words.length){
+      const hay = hayOf(t);
+      return words.every(w=>matchWord(hay, w));
+    }
+    return true;
+  });
+  const objs = res.filter(r=>r.object).length;
+  document.getElementById('count').textContent =
+    `Найдено: ${res.length} (объектов из файла: ${objs}) · всего в базе: ${DATA.length}`;
+  document.getElementById('results').innerHTML = res.length ? res.map(card).join("")
+    : '<div class="empty">Ничего не найдено. Попробуйте другой запрос или загрузите XLS.</div>';
+}
+
+function fillCities(){
+  const sel = document.getElementById('city');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Все города</option>' +
+    [...new Set(DATA.filter(t=>t.city).map(t=>t.city))].sort()
+      .map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join("");
+}
+
+function copyCard(btn){
+  const c = btn.closest('.card');
+  const txt = c.querySelector('h2').textContent + "\n" +
+    [...c.querySelectorAll('table.kv tr')].map(r=>r.children[0].textContent+": "+r.children[1].innerText).join("\n");
+  navigator.clipboard.writeText(txt).then(()=>{ btn.textContent="✅ Скопировано"; setTimeout(()=>btn.textContent="📋 Копировать",1500); });
+}
+
+// ---------- загрузка файла ----------
+async function doUpload(f){
+  const st = document.getElementById('ustatus');
+  if(!/\.(xls|xlsx|xlsm)$/i.test(f.name)){ st.className='ustatus err'; st.textContent='Нужен файл .xls или .xlsx'; return; }
+  st.className='ustatus'; st.textContent='⏳ Загружаю '+f.name+' …';
+  const fd = new FormData(); fd.append('file', f);
+  try{
+    const r = await fetch('/api/upload',{method:'POST',body:fd});
+    const j = await r.json();
+    if(!j.ok){ st.className='ustatus err'; st.textContent='❌ '+j.error; return; }
+    DATA = REF.concat(j.cards || []);
+    fillCities(); render();
+    document.getElementById('clrBtn').style.display='';
+    st.className='ustatus ok';
+    st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
+  }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
+}
+async function clearBase(){
+  if(!confirm('Удалить загруженную объектную базу с сервера?')) return;
+  await fetch('/api/upload',{method:'DELETE'});
+  DATA = REF.slice(); fillCities(); render();
+  document.getElementById('clrBtn').style.display='none';
+  const st=document.getElementById('ustatus'); st.className='ustatus'; st.textContent='База очищена.';
+}
+document.getElementById('file').addEventListener('change',e=>{ if(e.target.files[0]) doUpload(e.target.files[0]); e.target.value=''; });
+const up = document.getElementById('uploader');
+['dragover','dragenter'].forEach(ev=>up.addEventListener(ev,e=>{e.preventDefault(); up.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>up.addEventListener(ev,e=>{e.preventDefault(); up.classList.remove('drag');}));
+up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
+
+// ---------- фильтры ----------
+document.getElementById('q').addEventListener('input', render);
+document.getElementById('city').addEventListener('change', render);
+document.getElementById('scheme').addEventListener('change', render);
+document.querySelectorAll('.chip[data-src]').forEach(ch=>ch.addEventListener('click',()=>{
+  document.querySelectorAll('.chip[data-src]').forEach(c=>c.classList.remove('active'));
+  ch.classList.add('active'); srcFilter=ch.dataset.src; render();
+}));
+document.querySelectorAll('.chip[data-tm]').forEach(ch=>ch.addEventListener('click',()=>{
+  document.querySelectorAll('.chip[data-tm]').forEach(c=>c.classList.remove('active'));
+  ch.classList.add('active'); tmFilter=ch.dataset.tm; render();
+}));
+
+if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
+fillCities();
+render();
+</script>
+</body>
+</html>
