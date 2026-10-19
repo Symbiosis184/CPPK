@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Установка/обновление CPPK-сервиса с GitHub. Запуск на VPS от root:
-#   curl -fsSL https://raw.githubusercontent.com/<ВашЛогин>/<Репозиторий>/main/setup_from_git.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Symbiosis184/CPPK/main/setup_from_git.sh | bash
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/Symbiosis184/CPPK.git}"  # можно переопределить: REPO_URL=... bash setup_from_git.sh
@@ -21,9 +21,7 @@ if [ -d "$APP_DIR/.git" ]; then
 else
   echo "== Клонирование репозитория =="
   if [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
-    echo "Каталог $APP_DIR существует и не пуст, но это не git-репозиторий."
-    echo "Укажите URL репозитория:  REPO_URL=https://github.com/USER/REPO.git bash setup_from_git.sh"
-    exit 1
+    mv "$APP_DIR" "${APP_DIR}.bak.$(date +%s)"
   fi
   mkdir -p "$APP_DIR"
   git clone -q "$REPO_URL" "$APP_DIR"
@@ -43,15 +41,27 @@ cp "$APP_DIR/cppk.service" /etc/systemd/system/cppk.service
 systemctl daemon-reload
 systemctl enable cppk >/dev/null 2>&1
 systemctl restart cppk
-sleep 2
 
 # 4. Открыть порт в локальном фаерволе (если включён)
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   ufw allow "$PORT/tcp" >/dev/null || true
 fi
 
-# 5. Проверка
+# 5. Проверка (ждём до 30 сек, пока сервис поднимется)
+echo "== Ожидание запуска сервиса =="
+OK=""
+for i in $(seq 1 30); do
+  sleep 1
+  if RESP=$(curl -sf "http://127.0.0.1:$PORT/api/health" 2>/dev/null); then OK=1; break; fi
+done
 STATUS=$(systemctl is-active cppk || true)
 echo "== cppk: $STATUS =="
-curl -sf "http://127.0.0.1:$PORT/api/health" && echo
-echo "INSTALL_DONE  http://$(hostname -I | awk '{print $1}'):$PORT"
+if [ -n "$OK" ]; then
+  echo "$RESP"
+  echo "INSTALL_DONE  http://$(hostname -I | awk '{print $1}'):$PORT"
+else
+  echo "ОШИБКА: сервис не отвечает на http://127.0.0.1:$PORT"
+  echo "-- последние строки журнала --"
+  journalctl -u cppk -n 30 --no-pager || true
+  exit 1
+fi
