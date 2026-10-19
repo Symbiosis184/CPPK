@@ -125,7 +125,7 @@ function hayOf(t){
   const keys=["model","vendor","tm_model","connection","ip_scheme","ip","mask","gateway",
               "dns","server","com_port","auth","firmware","notes","number","city","address",
               "sim","ports_out","install_date","station","direction","section","zav","tid",
-              "sn_pinpad","ip_pinpad","ip_fr","region","mcd","place"];
+              "sn_pinpad","ip_pinpad","ip_fr","region","mcd","place","reg_address"];
   let a = keys.map(k=>t[k]||"").join(" ").toLowerCase();
   if(t.vlan) a += " vlan " + t.vlan;
   a += " " + (t.tags||[]).join(" ") + " " + (t.setup_steps||[]).join(" ");
@@ -148,7 +148,8 @@ function card(t){
     rows.push(kvRow("№ билетомата (ID БПА)", `<code>${esc(t.number)}</code>`));
     if(t.zav) rows.push(kvRow("Зав. №", `<code>${esc(t.zav)}</code>`));
     if(t.station) rows.push(kvRow("Станция", esc(t.station)));
-    if(t.city || t.address) rows.push(kvRow("Адрес регистрации", `${esc(t.city||"")}${t.address ? " — " + esc(t.address) : ""}`));
+    const regAddr = t.reg_address || t.address || "";
+    if(t.city || regAddr) rows.push(kvRow("Адрес регистрации", `${esc(t.city||"")}${regAddr ? " — " + esc(regAddr) : ""}`));
     if(t.place) rows.push(kvRow("Место расчетов", esc(t.place)));
     if(t.direction || t.section) rows.push(kvRow("Направление / Участок", `${esc(t.direction||"")}${t.section?" · "+esc(t.section):""}`));
     if(t.tm_model) rows.push(kvRow("Модель БПА", esc(t.tm_model)));
@@ -197,7 +198,7 @@ function card(t){
   return `<div class="card${isObj?' obj':''}">
     <button class="copy" onclick="copyCard(this)">📋 Копировать</button>
     <h2>${title}</h2>
-    ${isObj && (t.address) ? `<div class="loc">📍 ${esc(t.address)}</div>`:""}
+    ${isObj && (t.reg_address || t.address) ? `<div class="loc">📍 ${esc(t.reg_address || t.address)}</div>`:""}
     <div class="badges">${badges}</div>
     <table class="kv">${rows.join("")}</table>
     ${steps}${note}

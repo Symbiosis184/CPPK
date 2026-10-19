@@ -134,7 +134,7 @@ def _haystack(t: dict) -> str:
                 "auth", "firmware", "notes", "number", "city", "address",
                 "sim", "ports_out", "install_date", "station", "direction",
                 "section", "zav", "tid", "sn_pinpad", "ip_pinpad", "ip_fr",
-                "region", "mcd", "place"):
+                "region", "mcd", "place", "reg_address"):
         if t.get(key):
             parts.append(str(t[key]))
     if t.get("vlan"):

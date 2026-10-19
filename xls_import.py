@@ -47,8 +47,9 @@ _ALIASES = {
                     "серийник pin-pad", "pin-pad sn", "sn pin_pad", "s/n пинпад"],
     "tid":         ["tid pin-pad сбер", "tid pin-pad", "tid pinpad", "tid",
                     "tid пинпад"],
-    "address":     ["адрес регистрации для сбер банка", "адрес регистрации",
-                    "адрес регистр", "адрес", "address"],
+    "reg_address": ["адрес регистрации для сбер банка", "адрес регистрации",
+                    "адрес регистр", "registration address", "reg address"],
+    "address":     ["адрес", "address"],
     "place":       ["место расчетов для сбер банка", "место расчетов", "место расчётов",
                     "место установки", "место", "location"],
     "connection":  ["тип связи", "тип связи (спд / gsm)", "тип связи (спд/gsm)",
@@ -330,8 +331,12 @@ _EXTRA_LABELS = [
 def to_card(rec: dict, idx: int):
     num = rec.get("number") or rec.get("zav") or f"N-{idx:04d}"
     ttype = _guess_type(rec.get("tm_model", ""), rec.get("type", ""))
-    city = rec.get("city") or _extract_city(rec.get("address", ""),
-                                            rec.get("station", ""))
+    reg_addr = rec.get("reg_address", "")
+    if not reg_addr and rec.get("address"):
+        # обратная совместимость: раньше адрес регистрации шёл в "address"
+        reg_addr, rec["address"] = rec["address"], ""
+    city = (rec.get("city") or _extract_city(reg_addr, rec.get("station", ""))
+            or _extract_city(rec.get("address", ""), rec.get("station", "")))
     station = rec.get("station", "")
     conn = rec.get("connection", "")
     scheme = _guess_scheme(rec.get("scheme", ""), rec)
@@ -358,6 +363,8 @@ def to_card(rec: dict, idx: int):
         "city": city,
         "station": station,
         "address": rec.get("address", ""),
+        "reg_address": reg_addr,
+        "place": rec.get("place", ""),
         "direction": rec.get("direction", ""),
         "section": rec.get("section", ""),
         "zav": rec.get("zav", ""),
