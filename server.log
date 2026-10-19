@@ -1,0 +1,14 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+INFO:     Started server process [1064]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8123 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50604 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50606 - "POST /api/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50608 - "GET /api/terminals?q=mrecnf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50610 - "GET /api/terminals?q=moskva HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50612 - "GET /api/terminals?q=10231 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50614 - "GET /api/terminals?q=820 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50616 - "GET /api/terminals?q=10.90.5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50618 - "GET /api/terminals?q=%D1%82%D0%B2%D0%B5%D1%80%D1%81%D0%BA%D0%B0%D1%8F HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50620 - "GET /api/terminals?q=dhcp%20%D1%82%D0%B2%D0%B5%D1%80%D1%81%D0%BA%D0%B0%D1%8F HTTP/1.1" 200 OK
