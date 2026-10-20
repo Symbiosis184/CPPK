@@ -19,6 +19,8 @@
   .ubtn { background:var(--green); color:#fff; border:none; padding:11px 18px; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; }
   .ubtn.sec { background:#eef1f4; color:#333; }
   .ustatus { font-size:13.5px; color:var(--muted); flex:1; min-width:200px; }
+  .dbdate { font-size:12.5px; color:#5b6770; background:#eef4ee; border:1px solid #cfe3cf; padding:6px 10px; border-radius:8px; white-space:normal; }
+  .dbdate b { color:#1a7f37; }
   .ustatus.err { color:#d23; }
   .ustatus.ok { color:#00794a; }
   .searchbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
@@ -59,7 +61,23 @@
   h3.sec { margin:26px 0 10px; font-size:16px; }
   .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:15px; }
   footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
-  @media (max-width:640px){ table.kv td:first-child{width:130px;} main{padding:12px 10px 60px;} }
+  @media (max-width:640px){
+    main{padding:12px 10px calc(76px + env(safe-area-inset-bottom));}
+    header{padding:10px 12px; gap:8px;}
+    header h1{font-size:15px;}
+    header .sub{display:none;}
+    #q{font-size:16px; padding:12px 14px;}          /* 16px — без автозума на iOS */
+    .uploader{padding:10px 12px; gap:8px;}
+    .ubtn{flex:1 1 auto; text-align:center; font-size:14px; padding:12px 10px;}
+    .dbdate{order:5; flex-basis:100%; font-size:12px; padding:8px 10px; line-height:1.35;}
+    .card{padding:13px 12px; border-radius:12px;}
+    .card h2{font-size:16px;}
+    table.kv{font-size:13.5px;}
+    table.kv td{padding:6px 6px;}
+    table.kv td:first-child{width:104px; color:var(--muted);}
+    .copy{position:sticky;}
+    .searchbar{position:sticky; top:0; z-index:9; background:var(--bg); padding:8px 0 6px; margin-bottom:2px;}
+  }
 </style>
 </head>
 <body>
@@ -76,6 +94,7 @@
     <button class="ubtn" onclick="document.getElementById('file').click()">📄 Загрузить XLS/XLSX</button>
     <input type="file" id="file" accept=".xls,.xlsx,.xlsm">
     <button class="ubtn sec" id="clrBtn" style="display:none" onclick="clearBase()">🗑 Удалить базу</button>
+    <span class="dbdate" id="dbDate"></span>
     <div class="ustatus" id="ustatus"></div>
   </div>
 
@@ -254,6 +273,26 @@ function copyCard(btn){
   navigator.clipboard.writeText(txt).then(()=>{ btn.textContent="✅ Скопировано"; setTimeout(()=>btn.textContent="📋 Копировать",1500); });
 }
 
+// ---------- дата базы ----------
+function setDbDate(meta, count){
+  const el = document.getElementById('dbDate');
+  if(!meta || !meta.uploaded_at){ el.innerHTML=''; return; }
+  el.innerHTML = 'База: <b>'+esc(meta.filename||'файл')+'</b> · от '+esc(meta.uploaded_at)+
+                 (count? ' · '+count+' объектов' : '');
+}
+async function loadState(){
+  try{
+    const j = await (await fetch('/api/state')).json();
+    if(j.objects > 0){
+      document.getElementById('clrBtn').style.display='';
+      setDbDate(j.meta, j.objects);
+    } else {
+      document.getElementById('clrBtn').style.display='none';
+      setDbDate(null);
+    }
+  }catch(e){}
+}
+
 // ---------- загрузка файла ----------
 async function doUpload(f){
   const st = document.getElementById('ustatus');
@@ -267,6 +306,7 @@ async function doUpload(f){
     DATA = REF.concat(j.cards || []);
     render();
     document.getElementById('clrBtn').style.display='';
+    setDbDate(j.meta, j.imported);
     st.className='ustatus ok';
     st.textContent=`✅ Импортировано объектов: ${j.imported} (листы: ${j.sheets.map(s=>s.name+" — "+s.rows).join(", ")}) · городов: ${j.cities.length}`;
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка сети: '+e; }
@@ -281,6 +321,7 @@ async function clearBase(){
     if(!r.ok){ throw new Error('HTTP '+r.status); }
     DATA = []; render();
     document.getElementById('clrBtn').style.display='none';
+    setDbDate(null);
     st.className='ustatus'; st.textContent='База очищена.';
   }catch(e){ st.className='ustatus err'; st.textContent='❌ Ошибка: '+e; }
 }
@@ -294,6 +335,7 @@ up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTrans
 document.getElementById('q').addEventListener('input', render);
 
 if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
+loadState();
 render();
 </script>
 </body>

@@ -15,6 +15,7 @@
 """
 import json
 import os
+import time
 import re
 import unicodedata
 from typing import List
@@ -27,6 +28,20 @@ import xls_import
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_STORE = os.path.join(BASE_DIR, "upload_store.json")
+META_FILE = os.path.join(BASE_DIR, "upload_meta.json")
+
+
+def _save_meta(meta: dict):
+    with open(META_FILE, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
+
+
+def _load_meta() -> dict:
+    try:
+        with open(META_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 # Пароль на удаление базы (меняется здесь же)
 ADMIN_PASSWORD = os.environ.get("CPPK_ADMIN_PASSWORD", "25122023")
@@ -282,8 +297,10 @@ async def upload(file: UploadFile = File(...)):
     cards = [xls_import.to_card(r, i + 1) for i, r in enumerate(records)]
     UPLOADED = cards
     _save_uploaded(cards)
+    meta = {"filename": name, "uploaded_at": time.strftime("%Y-%m-%d %H:%M")}
+    _save_meta(meta)
     cities = sorted({c["city"] for c in cards if c["city"]})
-    return {"ok": True, "imported": len(cards),
+    return {"ok": True, "imported": len(cards), "meta": meta,
             "sheets": [{"name": n, "rows": k} for n, k in sheets],
             "cities": cities, "cards": cards}
 
@@ -294,7 +311,16 @@ def clear_upload(_admin=Depends(require_admin)):
     UPLOADED = []
     if os.path.exists(UPLOAD_STORE):
         os.remove(UPLOAD_STORE)
+    if os.path.exists(META_FILE):
+        os.remove(META_FILE)
     return {"ok": True}
+
+
+@app.get("/api/state", response_class=JSONResponse)
+def api_state():
+    """Текущее состояние базы: файл, дата загрузки, количество объектов."""
+    meta = _load_meta() if UPLOADED else {}
+    return {"objects": len(UPLOADED), "meta": meta}
 
 
 @app.get("/api/errors", response_class=JSONResponse)

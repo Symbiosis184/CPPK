@@ -10,3 +10,4 @@ upload_store.json
 *.xlsx
 venv/
 testrepo/
+upload_meta.json
