@@ -277,7 +277,7 @@ function copyCard(btn){
 function setDbDate(meta, count){
   const el = document.getElementById('dbDate');
   if(!meta || !meta.uploaded_at){ el.innerHTML=''; return; }
-  el.innerHTML = 'База: <b>'+esc(meta.filename||'файл')+'</b> · от '+esc(meta.uploaded_at)+
+  el.innerHTML = '<b>'+esc(meta.filename||'файл')+'</b> · от '+esc(meta.uploaded_at)+
                  (count? ' · '+count+' объектов' : '');
 }
 async function loadState(){

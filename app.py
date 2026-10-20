@@ -297,7 +297,10 @@ async def upload(file: UploadFile = File(...)):
     cards = [xls_import.to_card(r, i + 1) for i, r in enumerate(records)]
     UPLOADED = cards
     _save_uploaded(cards)
-    meta = {"filename": name, "uploaded_at": time.strftime("%Y-%m-%d %H:%M")}
+    # из имени файла убираем бренд/ведомственные пометки (СБЕР, Сбер и т.п.)
+    disp_name = re.sub(r"(?i)(сбер|sber(?:bank)?|sberrf)", "", name)
+    disp_name = re.sub(r"^[\s\-–_:.]+|[\s\-–_:.]+$", "", disp_name).strip() or "файл"
+    meta = {"filename": disp_name, "uploaded_at": time.strftime("%Y-%m-%d %H:%M")}
     _save_meta(meta)
     cities = sorted({c["city"] for c in cards if c["city"]})
     return {"ok": True, "imported": len(cards), "meta": meta,
