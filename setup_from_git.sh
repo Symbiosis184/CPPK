@@ -26,6 +26,10 @@ if [ -d "$APP_DIR/.git" ]; then
   # Если удалённой ветки нет (например, локальная тестовая), берём основную ветку репозитория
   if ! git -C "$APP_DIR" rev-parse -q --verify "origin/$BRANCH" >/dev/null; then
     DEF_BRANCH="$(git -C "$APP_DIR" remote show origin | sed -n 's/.*HEAD branch: //p')"
+    if [ -z "$DEF_BRANCH" ] || ! git -C "$APP_DIR" rev-parse -q --verify "origin/$DEF_BRANCH" >/dev/null; then
+      echo "ОШИБКА: не удалось определить основную ветку на origin (проверьте доступ к $REPO_URL)"
+      exit 1
+    fi
     echo "Ветка origin/$BRANCH не найдена, переключаемся на '$DEF_BRANCH'"
     BRANCH="$DEF_BRANCH"
     git -C "$APP_DIR" checkout -q -B "$BRANCH" "origin/$BRANCH"
