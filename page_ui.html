@@ -140,6 +140,9 @@ function hayOf(t){
 }
 const qw2cyr = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ','\\':'ё','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',"'":'э','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'};
 function qwTr(q){ return q.split('').map(c=>qw2cyr[c]!==undefined?qw2cyr[c]:c).join(''); }
+// латинские буквы-двойники кириллицы (смешанная раскладка: cофрино -> софрино)
+const lookalike = {'a':'а','b':'в','c':'с','e':'е','h':'н','j':'й','k':'к','m':'м','o':'о','p':'р','s':'с','t':'т','x':'х','y':'у'};
+function cyrFix(q){ return q.split('').map(c=>lookalike[c]!==undefined?lookalike[c]:c).join(''); }
 const PLACE_EXTRA = {
   'москва':'московский москвы московская','пушкино':'пушкинский пушкинские пушкинская пушкина',
   'одинцово':'одинцовский одинцовских','руза':'рузский рузский ружский рузы',
@@ -148,6 +151,8 @@ const PLACE_EXTRA = {
 };
 function wordForms(w){
   const cands = new Set([w, norm(w), norm(qwTr(w))]);
+  const fixed = cyrFix(w);
+  if(fixed !== w){ cands.add(fixed); cands.add(norm(fixed)); }
   if(/^[\x00-\x7f]+$/.test(w)){ const cyr = revTr(w); cands.add(norm(cyr)); cands.add(norm(qwTr(cyr))); }
   // топонимы: Пушкин -> Пушкино (доп. окончания) и обратные формы
   if(w.length>=4 && /[а-яё]/.test(w)){

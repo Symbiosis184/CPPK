@@ -12,12 +12,28 @@ if ! command -v git >/dev/null; then
   apt-get update -qq && apt-get install -y -qq git ca-certificates
 fi
 
+# Защита от CRLF-переносов (если файл скачали/отредактировали в Windows)
+git config --global core.autocrlf input 2>/dev/null || true
+
 # 1. Клонируем или обновляем репозиторий
 if [ -d "$APP_DIR/.git" ]; then
   echo "== Обновление из git =="
-  git -C "$APP_DIR" fetch --all -q
   BRANCH="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)"
+  if ! git -C "$APP_DIR" fetch --all -q; then
+    echo "ОШИБКА: не удалось выполнить git fetch (проверьте сеть и доступ к $REPO_URL)"
+    exit 1
+  fi
+  # Если удалённой ветки нет (например, локальная тестовая), берём основную ветку репозитория
+  if ! git -C "$APP_DIR" rev-parse -q --verify "origin/$BRANCH" >/dev/null; then
+    DEF_BRANCH="$(git -C "$APP_DIR" remote show origin | sed -n 's/.*HEAD branch: //p')"
+    echo "Ветка origin/$BRANCH не найдена, переключаемся на '$DEF_BRANCH'"
+    BRANCH="$DEF_BRANCH"
+    git -C "$APP_DIR" checkout -q -B "$BRANCH" "origin/$BRANCH"
+  fi
+  # reset --hard затирает любые локальные правки и рассинхрон с GitHub
   git -C "$APP_DIR" reset --hard -q "origin/$BRANCH"
+  # Удаляем неотслеживаемые артефакты (venv и data сохраняем)
+  git -C "$APP_DIR" clean -fdq -e venv -e data -e '*.db' || true
 else
   echo "== Клонирование репозитория =="
   if [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then

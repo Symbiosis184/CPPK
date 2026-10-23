@@ -1,0 +1,8 @@
+# Все shell-скрипты всегда с LF (иначе на сервере будут ошибки вида "-bash: -o: command not found")
+*.sh text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+*.md text
+*.html text
+*.json text
+*.xlsx binary

@@ -133,9 +133,25 @@ def _norm(s: str) -> str:
     return _cyr_to_latin(s)
 
 
+# Латинские буквы, визуально совпадающие с кириллическими (лат. c -> кир. с и т.п.)
+_LAT_LOOKALIKE = {
+    "a": "а", "b": "в", "c": "с", "e": "е", "h": "н", "j": "й", "k": "к",
+    "m": "м", "o": "о", "p": "р", "s": "с", "t": "т", "x": "х", "y": "у",
+}
+
+
+def _cyr_fix(s: str) -> str:
+    """Заменяет латинские буквы-двойники на кирилльские (смешанная раскладка)."""
+    return "".join(_LAT_LOOKALIKE.get(ch, ch) for ch in s)
+
+
 def _variants(q: str):
     q = q.strip().lower()
     v = {q, _cyr_to_latin(q), _cyr_to_latin(_qwerty_to_cyr(q))}
+    fixed = _cyr_fix(q)
+    if fixed != q:  # в запросе затесались латинские буквы-двойники кириллицы
+        v.add(fixed)
+        v.add(_cyr_to_latin(fixed))
     if q.isascii():
         cyr = _latin_to_cyr(q)
         v.add(_cyr_to_latin(cyr))
