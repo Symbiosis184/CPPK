@@ -1,8 +1,20 @@
 __pycache__/
 *.pyc
+venv/
+data/
+*.db
+# рантайм-артефакты (не должны попадать в git)
 *.log
 server.log
 srv.log
+run9000.log
+deploy_via_paste.txt
+paste_and_run.sh
+one_liner_setup.sh
+cppk.tar.gz
+testrepo/
 test_*.xlsx
+*.xlsx
+!examples/*.xlsx
 upload_meta.json
 upload_store.json
