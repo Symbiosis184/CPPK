@@ -378,6 +378,12 @@ def guide():
     return RedirectResponse(url="/#памятка")
 
 
+@app.get("/guide-split")
+def guide_split():
+    """Памятка + сетевые настройки рядом: памятка слева, результаты поиска справа."""
+    return RedirectResponse(url="/#guide-split")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", "9000"))

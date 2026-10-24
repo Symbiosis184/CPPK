@@ -73,6 +73,16 @@
   .gtable th { background:#f6f8fa; }
   .kbd { display:inline-block; background:#11151c; color:#fff; font-weight:700; padding:2px 9px; border-radius:6px; font-size:13px; font-family:Consolas,monospace; }
   details.guide-sec > summary { margin-bottom:4px; }
+  /* режим "памятка + настройки рядом" */
+  body.split-view main { max-width:none; }
+  body.split-view .split-wrap { display:flex; gap:16px; align-items:flex-start; }
+  body.split-view .split-wrap #guideCard { flex:1 1 480px; min-width:0; position:sticky; top:12px; max-height:calc(100vh - 24px); overflow:auto; }
+  body.split-view .split-wrap #results { flex:1 1 520px; min-width:0; }
+  @media (max-width:1000px){
+    body.split-view .split-wrap { flex-direction:column; }
+    body.split-view .split-wrap #guideCard { position:static; max-height:none; width:100%; }
+  }
+  .ubtn.active { background:var(--green); color:#fff; border-color:var(--green); }
   @media (max-width:640px){
     main{padding:12px 10px calc(76px + env(safe-area-inset-bottom));}
     header{padding:10px 12px; gap:8px;}
@@ -99,7 +109,8 @@
     <h1>Сетевые настройки терминалов под билетоматы BPA / APB</h1>
     <div class="sub">Ищите по городу, номеру билетомата, станции, адресу, IP, TID, s/n</div>
   </div>
-  <button class="ubtn" style="margin-left:auto" onclick="showGuide()">🛠 Памятка инженера</button>
+  <button class="ubtn" style="margin-left:auto" onclick="showGuide()" id="guideBtn">🛠 Памятка инженера</button>
+  <button class="ubtn" id="splitBtn" onclick="toggleSplit()" title="Памятка слева, результаты поиска справа — удобно смотреть и то, и другое одновременно">⬜ Рядом</button>
 </header>
 <main>
   <!-- ЗАГРУЗКА XLS -->
@@ -117,6 +128,7 @@
   <div class="count" id="count"></div>
 
   <!-- ПАМЯТКА ИНЖЕНЕРА -->
+  <div class="split-wrap">
   <div class="guide-card" id="guideCard" style="display:none">
     <h2>🛠 Памятка инженера: перепрошивка и настройка билетомата BPA/APB</h2>
 
@@ -166,7 +178,8 @@
     <div class="note"><b>Примечание:</b> 40 — сверка итогов, 44 — проверка ключей, 45 — удалить сертификат.</div>
 
     <h3>6. Сетевые настройки конкретного объекта</h3>
-    <p>IP/VLAN/шлюзы по каждому билетомату — в поиске выше (по городу или № билетомата).</p>
+    <p>IP/VLAN/шлюзы по каждому билетомату — в поиске рядом (по городу или № билетомата).
+    Удобно включить кнопку <b>«⬜ Рядом»</b> в шапке: памятка останется слева, а результаты поиска — справа.</p>
 
     <div style="margin-top:14px; text-align:right;">
       <button class="copy" onclick="hideGuide()">✖ Закрыть памятку</button>
@@ -174,6 +187,7 @@
   </div>
 
   <div id="results"></div>
+  </div><!-- /split-wrap -->
 </main>
 <footer>Внутренний инструмент. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
 
@@ -411,30 +425,59 @@ up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTrans
 document.getElementById('q').addEventListener('input', render);
 
 // ---------- памятка инженера ----------
-const GUIDE_KEYS = ['guide', 'памятка', 'памятку'];
+var GUIDE_KEYS = ['guide', 'памятка', 'памятку'];
+var SPLIT_KEYS = ['guide-split', 'памятка-рядом'];
 function guideHash(){
   try { return decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase(); }
   catch(e) { return location.hash.replace(/^#/, '').toLowerCase(); }
 }
+function setSplit(on){
+  document.body.classList.toggle('split-view', on);
+  var b = document.getElementById('splitBtn');
+  b.textContent = on ? '✅ Рядом' : '⬜ Рядом';
+  b.classList.toggle('active', on);
+  try { localStorage.setItem('cppk_split', on ? '1' : ''); } catch(e) {}
+}
+function toggleSplit(){
+  var on = !document.body.classList.contains('split-view');
+  setSplit(on);
+  if(on){ showGuide(); }
+  else if(SPLIT_KEYS.includes(guideHash())){ history.replaceState(null, '', '#памятка'); }
+}
 function showGuide(){
   document.getElementById('guideCard').style.display = '';
-  if(location.hash !== '#памятка') history.replaceState(null, '', '#памятка');
-  const g = document.getElementById('guideCard');
-  if(g.scrollIntoView) g.scrollIntoView({behavior:'smooth', block:'start'});
+  var g = document.getElementById('guideCard');
+  if(!document.body.classList.contains('split-view') && g.scrollIntoView){
+    g.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  var newHash = document.body.classList.contains('split-view') ? '#guide-split' : '#памятка';
+  if(guideHash() !== newHash.slice(1)) history.replaceState(null, '', newHash);
 }
 function hideGuide(){
   document.getElementById('guideCard').style.display = 'none';
-  if(GUIDE_KEYS.includes(guideHash())) history.replaceState(null, '', location.pathname);
+  if(GUIDE_KEYS.concat(SPLIT_KEYS).includes(guideHash())) history.replaceState(null, '', location.pathname);
 }
-window.addEventListener('hashchange', ()=>{
-  if(GUIDE_KEYS.includes(guideHash())) showGuide();
-  else document.getElementById('guideCard').style.display = 'none';
+window.addEventListener('hashchange', function(){
+  var h = guideHash();
+  if(SPLIT_KEYS.includes(h)){ setSplit(true); showGuide(); }
+  else if(GUIDE_KEYS.includes(h)){ showGuide(); }
+  else { document.getElementById('guideCard').style.display = 'none'; }
 });
+
+function initGuide(){
+  // восстановление режима "Рядом" из памяти браузера (если в адресе нет прямого указания вида)
+  try {
+    if(localStorage.getItem('cppk_split') === '1' && !SPLIT_KEYS.includes(guideHash()) && !GUIDE_KEYS.includes(guideHash())) setSplit(true);
+  } catch(e) {}
+  var h = guideHash();
+  if(SPLIT_KEYS.includes(h)){ setSplit(true); showGuide(); }
+  else if(GUIDE_KEYS.includes(h)){ showGuide(); }
+}
 
 if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
 loadState();
 render();
-if(GUIDE_KEYS.includes(guideHash())) showGuide();
+initGuide();
 </script>
 </body>
 </html>
