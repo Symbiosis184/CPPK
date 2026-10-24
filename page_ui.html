@@ -62,8 +62,10 @@
   .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:15px; }
   footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
   /* памятка инженера */
-  .guide-card { background:var(--card); border-radius:14px; padding:18px 20px; box-shadow:0 1px 3px rgba(16,24,32,.08); border-left:5px solid #1a56c4; }
-  .guide-card h2 { margin:0 0 4px; font-size:17px; }
+  .guide-card { position:relative; background:var(--card); border-radius:14px; padding:18px 20px; box-shadow:0 1px 3px rgba(16,24,32,.08); border-left:5px solid #1a56c4; }
+  .guide-card h2 { margin:0 44px 4px 0; font-size:17px; }
+  .guide-close { position:absolute; top:12px; right:12px; z-index:2; width:34px; height:34px; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; padding:0; border:1px solid #cfd6dd; border-radius:10px; background:#fafbfc; color:#3b4654; cursor:pointer; box-shadow:0 1px 2px rgba(16,24,32,.06); }
+  .guide-close:hover { border-color:#d33; color:#d33; background:#fff5f5; }
   .guide-card h3 { margin:18px 0 6px; font-size:15px; color:#1a56c4; }
   .guide-card ol, .guide-card ul { margin:6px 0 4px; padding-left:22px; font-size:14px; }
   .guide-card li { margin:4px 0; }
@@ -99,6 +101,9 @@
     table.kv td:first-child{width:104px; color:var(--muted);}
     .copy{position:sticky;}
     .searchbar{position:sticky; top:0; z-index:9; background:var(--bg); padding:8px 0 6px; margin-bottom:2px;}
+    .guide-close{top:8px; right:8px; width:44px; height:44px; font-size:20px; border-radius:12px;}  /* тач-цель ≥44px */
+    .guide-card{padding:16px 14px;}
+    .guide-card h2{margin:0 50px 4px 0; font-size:16px;}
   }
 </style>
 </head>
@@ -130,6 +135,7 @@
   <!-- ПАМЯТКА ИНЖЕНЕРА -->
   <div class="split-wrap">
   <div class="guide-card" id="guideCard" style="display:none">
+    <button type="button" class="guide-close" onclick="hideGuide()" title="Закрыть памятку" aria-label="Закрыть памятку">✖</button>
     <h2>🛠 Памятка инженера: перепрошивка и настройка билетомата BPA/APB</h2>
 
     <h3>1. Прошивка ядра и приложения</h3>
@@ -180,10 +186,6 @@
     <h3>6. Сетевые настройки конкретного объекта</h3>
     <p>IP/VLAN/шлюзы по каждому билетомату — в поиске рядом (по городу или № билетомата).
     Удобно включить кнопку <b>«⬜ Рядом»</b> в шапке: памятка останется слева, а результаты поиска — справа.</p>
-
-    <div style="margin-top:14px; text-align:right;">
-      <button class="copy" onclick="hideGuide()">✖ Закрыть памятку</button>
-    </div>
   </div>
 
   <div id="results"></div>
