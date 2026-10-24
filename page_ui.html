@@ -61,6 +61,18 @@
   h3.sec { margin:26px 0 10px; font-size:16px; }
   .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:15px; }
   footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+  /* памятка инженера */
+  .guide-card { background:var(--card); border-radius:14px; padding:18px 20px; box-shadow:0 1px 3px rgba(16,24,32,.08); border-left:5px solid #1a56c4; }
+  .guide-card h2 { margin:0 0 4px; font-size:17px; }
+  .guide-card h3 { margin:18px 0 6px; font-size:15px; color:#1a56c4; }
+  .guide-card ol, .guide-card ul { margin:6px 0 4px; padding-left:22px; font-size:14px; }
+  .guide-card li { margin:4px 0; }
+  .guide-card p { font-size:14px; margin:6px 0; }
+  .gtable { width:100%; border-collapse:collapse; font-size:14px; margin:8px 0; }
+  .gtable th, .gtable td { border:1px solid #e3e8ed; padding:6px 10px; text-align:left; }
+  .gtable th { background:#f6f8fa; }
+  .kbd { display:inline-block; background:#11151c; color:#fff; font-weight:700; padding:2px 9px; border-radius:6px; font-size:13px; font-family:Consolas,monospace; }
+  details.guide-sec > summary { margin-bottom:4px; }
   @media (max-width:640px){
     main{padding:12px 10px calc(76px + env(safe-area-inset-bottom));}
     header{padding:10px 12px; gap:8px;}
@@ -87,6 +99,7 @@
     <h1>Сетевые настройки терминалов под билетоматы BPA / APB</h1>
     <div class="sub">Ищите по городу, номеру билетомата, станции, адресу, IP, TID, s/n</div>
   </div>
+  <button class="ubtn" style="margin-left:auto" onclick="showGuide()">🛠 Памятка инженера</button>
 </header>
 <main>
   <!-- ЗАГРУЗКА XLS -->
@@ -102,6 +115,64 @@
     <input id="q" placeholder="Город, номер билетомата, станция, адрес, IP, шлюз, маска, VLAN, TID, s/n…" autocomplete="off" inputmode="search">
   </div>
   <div class="count" id="count"></div>
+
+  <!-- ПАМЯТКА ИНЖЕНЕРА -->
+  <div class="guide-card" id="guideCard" style="display:none">
+    <h2>🛠 Памятка инженера: перепрошивка и настройка билетомата BPA/APB</h2>
+
+    <h3>1. Прошивка ядра и приложения</h3>
+    <ol>
+      <li>После прошивки ядра — нажать <span class="kbd">0</span>.</li>
+      <li><b>Download app</b> → <b>RS232</b> → прошить <b>UPOS</b>.</li>
+    </ol>
+
+    <h3>2. Вход в сервисное меню (Сбер)</h3>
+    <ul>
+      <li>Тап на логотип <b>Сбер</b> (или клавиша <span class="kbd">5</span> на старом терминале).</li>
+      <li>Код доступа: <code class="mono">028510</code></li>
+    </ul>
+
+    <h3>3. Настройка связи (статический IP)</h3>
+    <ol>
+      <li><b>Настройки</b> → <b>Настройка связи</b> → <b>Каналы</b> → <b>Ethernet</b>.</li>
+      <li>Нажать <span class="kbd">1</span>, затем: <b>Нет</b> → <b>Да (статика)</b>.</li>
+      <li>Ввести <b>IP-адрес</b>, <b>маску</b>, <b>шлюз</b> (значения — в карточке объекта, см. поиск выше).</li>
+      <li>Выйти, <b>сохранить</b>.</li>
+    </ol>
+
+    <h3>4. Обновление ПО и активация</h3>
+    <ol>
+      <li>Основное меню → <b>Обновление</b> → <b>Обновить ПО</b>.</li>
+      <li>После обновления → <b>Лицензирование</b>:
+        <ul>
+          <li><b>Активация с сервера</b>: <b>KLA</b>, <b>RKL</b>;</li>
+          <li><b>Загрузка KLK-ключа</b>.</li>
+        </ul>
+      </li>
+      <li>Главное меню → <b>Загрузка ключей</b> → <b>Сверка итогов</b>.</li>
+    </ol>
+
+    <h3>5. Функции сервисного меню (код + номер функции)</h3>
+    <table class="gtable">
+      <tr><th>Код</th><th>Функция</th></tr>
+      <tr><td><span class="kbd">0</span></td><td>Тест связи</td></tr>
+      <tr><td><span class="kbd">13</span></td><td>Удаление транзакций</td></tr>
+      <tr><td><span class="kbd">19</span></td><td>Снять Reversal</td></tr>
+      <tr><td><span class="kbd">40</span></td><td>Сверка итогов</td></tr>
+      <tr><td><span class="kbd">44</span></td><td>Проверка SN / KLK-ключей</td></tr>
+      <tr><td><span class="kbd">45</span></td><td>Удаление сертификатов</td></tr>
+      <tr><td><span class="kbd">50</span></td><td>Загрузка параметров</td></tr>
+    </table>
+    <div class="note"><b>Примечание:</b> 40 — сверка итогов, 44 — проверка ключей, 45 — удалить сертификат.</div>
+
+    <h3>6. Сетевые настройки конкретного объекта</h3>
+    <p>IP/VLAN/шлюзы по каждому билетомату — в поиске выше (по городу или № билетомата).</p>
+
+    <div style="margin-top:14px; text-align:right;">
+      <button class="copy" onclick="hideGuide()">✖ Закрыть памятку</button>
+    </div>
+  </div>
+
   <div id="results"></div>
 </main>
 <footer>Внутренний инструмент. Загруженная база хранится на сервере в <code>upload_store.json</code>.</footer>
@@ -339,9 +410,31 @@ up.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) doUpload(e.dataTrans
 // ---------- фильтры ----------
 document.getElementById('q').addEventListener('input', render);
 
+// ---------- памятка инженера ----------
+const GUIDE_KEYS = ['guide', 'памятка', 'памятку'];
+function guideHash(){
+  try { return decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase(); }
+  catch(e) { return location.hash.replace(/^#/, '').toLowerCase(); }
+}
+function showGuide(){
+  document.getElementById('guideCard').style.display = '';
+  if(location.hash !== '#памятка') history.replaceState(null, '', '#памятка');
+  const g = document.getElementById('guideCard');
+  if(g.scrollIntoView) g.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function hideGuide(){
+  document.getElementById('guideCard').style.display = 'none';
+  if(GUIDE_KEYS.includes(guideHash())) history.replaceState(null, '', location.pathname);
+}
+window.addEventListener('hashchange', ()=>{
+  if(GUIDE_KEYS.includes(guideHash())) showGuide();
+  else document.getElementById('guideCard').style.display = 'none';
+});
+
 if(DATA.some(t=>t.object)){ document.getElementById('clrBtn').style.display=''; }
 loadState();
 render();
+if(GUIDE_KEYS.includes(guideHash())) showGuide();
 </script>
 </body>
 </html>

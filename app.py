@@ -21,7 +21,7 @@ import unicodedata
 from typing import List
 
 from fastapi import Depends, FastAPI, File, Header, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from data import TERMINALS, ERRORS
 import xls_import
@@ -370,6 +370,12 @@ def index():
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache", "Expires": "0",
     })
+
+
+@app.get("/guide")
+def guide():
+    """Памятка инженера — постоянный адрес (открывает страницу с раскрытой памяткой)."""
+    return RedirectResponse(url="/#памятка")
 
 
 if __name__ == "__main__":
